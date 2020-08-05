@@ -68,9 +68,14 @@ f# : Value under which it is count as failuer
 async fn roll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let input = args.rest();
     let res = caith::roll(input)?;
+    let name = msg
+        .author
+        .nick_in(&ctx.http, msg.guild_id.unwrap())
+        .await
+        .unwrap_or_else(|| msg.author.name.to_owned());
     if let Err(e) = msg
         .channel_id
-        .say(&ctx.http, format!("{} roll: {}", msg.author, res))
+        .say(&ctx.http, format!("{} roll: {}", name, res))
         .await
     {
         eprintln!("Error sending message: {:?}", e);
@@ -113,12 +118,6 @@ async fn main() {
         .framework(framework)
         .await
         .expect("Err creating client");
-
-    // {
-    //     let mut data = client.data.write().await;
-    //     data.insert::<CommandCounter>(HashMap::default());
-    //     data.insert::<ShardManagerContainer>(Arc::clone(&client.shard_manager));
-    // }
 
     if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);

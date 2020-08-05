@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 tokio = { version = "0.2.22", features = ["macros"]}
-caith = "0.1.2"
+caith = "0.1.3"
 
 [dependencies.serenity]
 # default-features = false
