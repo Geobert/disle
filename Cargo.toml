@@ -11,13 +11,5 @@ tokio = { version = "0.2.22", features = ["macros"]}
 caith = "0.1.4"
 
 [dependencies.serenity]
-# default-features = false
-# features = [
-#     "builder", "client", "gateway", "utils",
-#     "cache",
-#     "framework",
-#     "standard_framework",
-#     "rustls_backend",
-# ]
 git = "https://github.com/acdenisSK/serenity"
 branch = "await_next"
