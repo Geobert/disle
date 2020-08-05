@@ -44,17 +44,17 @@ rolls x dices of y sides
 
 Options:
 + - / * : modifiers
-e# : Explode value
+e#  : Explode value
 ie# : Indefinite explode value
-K# : How many dice to keep out the roll, keeping the highest
-k# : How many dice to keep out the roll, keeping the lowest
-D# : How many dice to drop out the roll, dropping the highest
-d# : How many dice to drop out the roll, dropping the lowest
-r# : Reroll if <= value
+K#  : Keeping # highest (upperacse "K")
+k#  : Keeping # lowest (lowercase "k")
+D#  : Dropping the highest (uppercase "D")
+d#  : Dropping the lowest (lowercase "d")
+r#  : Reroll if <= value
 ir# : Indefinite reroll if <= value
-t# : Target value to be a success
-f# : Value under which it is count as failuer
-! : Any text after `!` will be a comment
+t#  : Target value to be a success
+f#  : Value under which it is count as failuer
+!   : Any text after `!` will be a comment
 ```"#
             .to_string()
     } else {
