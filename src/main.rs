@@ -2,14 +2,13 @@ use serenity::{
     client::Context,
     framework::{
         standard::{
-            help_commands,
-            macros::{command, group, help, hook},
-            Args, CommandGroup, CommandResult, DispatchError, HelpOptions,
+            macros::{command, group, hook},
+            Args, CommandResult, DispatchError,
         },
         StandardFramework,
     },
     http::Http,
-    model::{channel::Message, id::UserId},
+    model::channel::Message,
     Client,
 };
 use std::{collections::HashSet, env};
@@ -17,19 +16,6 @@ use std::{collections::HashSet, env};
 #[group]
 #[commands(roll)]
 struct Roll;
-
-#[help]
-async fn my_help(
-    context: &Context,
-    msg: &Message,
-    args: Args,
-    help_options: &'static HelpOptions,
-    groups: &[&'static CommandGroup],
-    owners: HashSet<UserId>,
-) -> CommandResult {
-    let _ = help_commands::with_embeds(context, msg, args, help_options, groups, owners).await;
-    Ok(())
-}
 
 #[hook]
 async fn dispatch_error(ctx: &Context, msg: &Message, error: DispatchError) {
@@ -48,8 +34,13 @@ async fn dispatch_error(ctx: &Context, msg: &Message, error: DispatchError) {
 #[help_available]
 #[min_args(1)]
 #[description("Roll dice(s)")]
-#[usage(
-    r#"/roll xdy [OPTIONS]
+async fn roll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let input = args.rest();
+    let msg_to_send = if input.trim().starts_with("help") {
+        r#"```
+/roll xdy [OPTIONS]
+
+rolls x dices of y sides
 
 Options:
 + - / * : modifiers
@@ -63,24 +54,22 @@ r# : Reroll if <= value
 ir# : Indefinite reroll if <= value
 t# : Target value to be a success
 f# : Value under which it is count as failuer
-! : Any text after `!` will be a comment"#
-)]
-async fn roll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let input = args.rest();
-    let res = caith::roll(input)?;
-    let name = msg
-        .author
-        .nick_in(&ctx.http, msg.guild_id.unwrap())
-        .await
-        .unwrap_or_else(|| msg.author.name.to_owned());
-    if let Err(e) = msg
-        .channel_id
-        .say(&ctx.http, format!("{} roll: {}", name, res))
-        .await
-    {
+! : Any text after `!` will be a comment
+```"#
+            .to_string()
+    } else {
+        let res = caith::roll(input)?;
+        let name = msg
+            .author
+            .nick_in(&ctx.http, msg.guild_id.unwrap())
+            .await
+            .unwrap_or_else(|| msg.author.name.to_owned());
+        format!("{} roll: {}", name, res)
+    };
+
+    if let Err(e) = msg.channel_id.say(&ctx.http, msg_to_send).await {
         eprintln!("Error sending message: {:?}", e);
     }
-
     Ok(())
 }
 
@@ -111,7 +100,7 @@ async fn main() {
                 .owners(owners)
         })
         .on_dispatch_error(dispatch_error)
-        .help(&MY_HELP)
+        // .help(&MY_HELP)
         .group(&ROLL_GROUP);
 
     let mut client = Client::new(&token)
