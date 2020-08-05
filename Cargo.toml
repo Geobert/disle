@@ -1,0 +1,23 @@
+[package]
+name = "disle"
+version = "0.1.0"
+authors = ["Geobert Quach <geobert@protonmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { version = "0.2.22", features = ["macros"]}
+caith = "0.1.2"
+
+[dependencies.serenity]
+# default-features = false
+# features = [
+#     "builder", "client", "gateway", "utils",
+#     "cache",
+#     "framework",
+#     "standard_framework",
+#     "rustls_backend",
+# ]
+git = "https://github.com/acdenisSK/serenity"
+branch = "await_next"
