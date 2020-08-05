@@ -1,0 +1,18 @@
+on: [push]
+
+name: CI
+
+jobs:
+  build_and_test:
+    name: Disle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - run: cargo build --release
+      - uses: actions/upload-artifact@v2
+        with:
+          name: bin
+          path: target/release/disle
