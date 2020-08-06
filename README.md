@@ -2,7 +2,7 @@
 
 A Discord bot that rolls RPG dices, written in Rust.
 
-# Usage
+# Installation
 
 You need to host the bot yourself.
 
@@ -14,3 +14,7 @@ You need to host the bot yourself.
 - In `https://discordapp.com/oauth2/authorize?client_id=CLIENTID&scope=bot`, replace
   CLIENTID with the value of your application Client ID (in "General Information).
 - Go the this modified URL and allow the bot to your Discord's server.
+
+# Usage
+
+See the underlying crate `caith`'s [Readme for the syntax](https://github.com/Geobert/caith/blob/master/README.md)
