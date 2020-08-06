@@ -1,3 +1,5 @@
+use std::{collections::HashSet, env};
+
 use serenity::{
     client::Context,
     framework::{
@@ -11,7 +13,6 @@ use serenity::{
     model::channel::Message,
     Client,
 };
-use std::{collections::HashSet, env};
 
 #[group]
 #[commands(roll)]
@@ -30,41 +31,52 @@ async fn dispatch_error(ctx: &Context, msg: &Message, error: DispatchError) {
     }
 }
 
+fn get_help_msg() -> String {
+    r#"```
+    /roll xdy [OPTIONS]
+    
+    rolls x dices of y sides
+    
+    Options:
+    + - / * : modifiers
+    e#  : Explode value
+    ie# : Indefinite explode value
+    K#  : Keeping # highest (upperacse "K")
+    k#  : Keeping # lowest (lowercase "k")
+    D#  : Dropping the highest (uppercase "D")
+    d#  : Dropping the lowest (lowercase "d")
+    r#  : Reroll if <= value
+    ir# : Indefinite reroll if <= value
+    t#  : Target value to be a success
+    f#  : Value under which it is count as failuer
+    !   : Any text after `!` will be a comment
+    ```"#
+        .to_string()
+}
+
 #[command]
 #[help_available]
 #[min_args(1)]
 #[description("Roll dice(s)")]
 async fn roll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let input = args.rest();
-    let msg_to_send = if input.trim().starts_with("help") {
-        r#"```
-/roll xdy [OPTIONS]
-
-rolls x dices of y sides
-
-Options:
-+ - / * : modifiers
-e#  : Explode value
-ie# : Indefinite explode value
-K#  : Keeping # highest (upperacse "K")
-k#  : Keeping # lowest (lowercase "k")
-D#  : Dropping the highest (uppercase "D")
-d#  : Dropping the lowest (lowercase "d")
-r#  : Reroll if <= value
-ir# : Indefinite reroll if <= value
-t#  : Target value to be a success
-f#  : Value under which it is count as failuer
-!   : Any text after `!` will be a comment
-```"#
-            .to_string()
+    let msg_to_send = if input.starts_with("help") {
+        get_help_msg()
     } else {
-        let res = caith::roll(input)?;
-        let name = msg
-            .author
-            .nick_in(&ctx.http, msg.guild_id.unwrap())
-            .await
-            .unwrap_or_else(|| msg.author.name.to_owned());
-        format!("{} roll: {}", name, res)
+        match caith::roll(input) {
+            Ok(res) => {
+                let name = msg
+                    .author
+                    .nick_in(&ctx.http, msg.guild_id.unwrap())
+                    .await
+                    .unwrap_or_else(|| msg.author.name.to_owned());
+                format!("{} roll: {}", name, res)
+            }
+            Err(err) => match err {
+                caith::RollError::ParseError(_) => format!("Error:\n```\n{}\n```", err),
+                caith::RollError::ParamError(err) => format!("Error: {}", err),
+            },
+        }
     };
 
     if let Err(e) = msg.channel_id.say(&ctx.http, msg_to_send).await {

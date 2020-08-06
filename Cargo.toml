@@ -1,6 +1,6 @@
 [package]
 name = "disle"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Geobert Quach <geobert@protonmail.com>"]
 edition = "2018"
 
@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 tokio = { version = "0.2.22", features = ["macros"]}
-caith = "0.1.4"
+caith = "0.2.0"
 
 [dependencies.serenity]
 git = "https://github.com/acdenisSK/serenity"
