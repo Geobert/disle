@@ -20,8 +20,10 @@ use serenity::{
     Client,
 };
 
+mod alias;
+
 #[group]
-#[commands(roll, reroll)]
+#[commands(roll, reroll, set_alias)]
 struct Roll;
 
 static REROLL_TABLE: Lazy<Mutex<HashMap<String, String>>> =
@@ -45,7 +47,9 @@ fn get_help_msg() -> String {
     /roll xdy [OPTIONS][TARGET][FAILURE][REASON]
     (or "/r" for short)
     
-    rolls x dices of y sides
+    rolls `x` dices of `y` sides
+
+    `y` can also be "F" or "f" for Fudge/Fate dice.
 
     /reroll (or /rr)
     
@@ -101,21 +105,30 @@ async fn process_roll(
 
 #[command]
 #[aliases("r")]
-#[min_args(1)]
 #[description("Roll dice(s)")]
-async fn roll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let input = args.rest();
-    let msg_to_send = if input.starts_with("help") {
-        get_help_msg()
-    } else {
-        match process_roll(input, ctx, msg).await {
-            Ok((name, res)) => format!("{} roll: {}", name, res),
-            Err(msg) => msg,
+async fn roll(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+    if args.len() == 0 {
+        if let Err(e) = msg.channel_id.say(&ctx.http, get_help_msg()).await {
+            eprintln!("Error sending message: {:?}", e);
         }
-    };
+    } else {
+        let maybe_alias = args.single::<String>().unwrap();
+        let input = match alias::get_alias(&maybe_alias) {
+            Some(command) => format!("{} {}", command, args.rest()),
+            None => args.rest().to_owned(),
+        };
+        let msg_to_send = if input.starts_with("help") {
+            get_help_msg()
+        } else {
+            match process_roll(&input, ctx, msg).await {
+                Ok((name, res)) => format!("{} roll: {}", name, res),
+                Err(msg) => msg,
+            }
+        };
 
-    if let Err(e) = msg.channel_id.say(&ctx.http, msg_to_send).await {
-        eprintln!("Error sending message: {:?}", e);
+        if let Err(e) = msg.channel_id.say(&ctx.http, msg_to_send).await {
+            eprintln!("Error sending message: {:?}", e);
+        }
     }
     Ok(())
 }
@@ -145,6 +158,13 @@ async fn reroll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         eprintln!("Error sending message: {:?}", e);
     }
     Ok(())
+}
+
+#[command]
+#[aliases("setalias")]
+#[min_args(2)]
+async fn set_alias(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    alias::set_alias(ctx, msg, args).await
 }
 
 #[tokio::main]
