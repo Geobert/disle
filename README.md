@@ -17,4 +17,36 @@ You need to host the bot yourself.
 
 # Usage
 
-See the underlying crate `caith`'s [Readme for the syntax](https://github.com/Geobert/caith/blob/master/README.md)
+```
+/roll xdy [OPTIONS][TARGET][FAILURE][REASON]
+(or "/r" for short)
+  
+rolls x dices of y sides
+
+/reroll (or /rr)
+    
+reroll the last roll of the user
+
+Options:
++ - / * : modifiers
+e#  : Explode value
+ie# : Indefinite explode value
+K#  : Keeping # highest (upperacse "K")
+k#  : Keeping # lowest (lowercase "k")
+D#  : Dropping the highest (uppercase "D")
+d#  : Dropping the lowest (lowercase "d")
+r#  : Reroll if <= value
+ir# : Indefinite reroll if <= value
+    
+Target:
+t#  : Target value to be a success
+
+Failure: 
+f#  : Value under which it is count as failuer
+
+Reason:
+!   : Any text after `!` will be a comment
+```
+
+See the underlying crate `caith`'s [Readme for the full syntax](https://github.com/Geobert/caith/blob/master/README.md)
+

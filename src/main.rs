@@ -1,5 +1,11 @@
-use std::{collections::HashSet, env};
+use std::{
+    collections::{HashMap, HashSet},
+    env,
+    sync::Mutex,
+};
 
+use caith::RollResult;
+use once_cell::sync::Lazy;
 use serenity::{
     client::Context,
     framework::{
@@ -15,8 +21,11 @@ use serenity::{
 };
 
 #[group]
-#[commands(roll)]
+#[commands(roll, reroll)]
 struct Roll;
+
+static REROLL_TABLE: Lazy<Mutex<HashMap<String, String>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[hook]
 async fn dispatch_error(ctx: &Context, msg: &Message, error: DispatchError) {
@@ -33,10 +42,15 @@ async fn dispatch_error(ctx: &Context, msg: &Message, error: DispatchError) {
 
 fn get_help_msg() -> String {
     r#"```
-    /roll xdy [OPTIONS]
+    /roll xdy [OPTIONS][TARGET][FAILURE][REASON]
+    (or "/r" for short)
     
     rolls x dices of y sides
+
+    /reroll (or /rr)
     
+    reroll the last roll of the user
+
     Options:
     + - / * : modifiers
     e#  : Explode value
@@ -47,15 +61,46 @@ fn get_help_msg() -> String {
     d#  : Dropping the lowest (lowercase "d")
     r#  : Reroll if <= value
     ir# : Indefinite reroll if <= value
+    
+    Target:
     t#  : Target value to be a success
+
+    Failure: 
     f#  : Value under which it is count as failuer
+
+    Reason:
     !   : Any text after `!` will be a comment
     ```"#
         .to_string()
 }
 
+async fn process_roll(
+    input: &str,
+    ctx: &Context,
+    msg: &Message,
+) -> Result<(String, RollResult), String> {
+    match caith::roll(input) {
+        Ok(res) => {
+            let name = msg
+                .author
+                .nick_in(&ctx.http, msg.guild_id.unwrap())
+                .await
+                .unwrap_or_else(|| msg.author.name.to_owned());
+            {
+                let mut reroll_table = REROLL_TABLE.lock().unwrap();
+                reroll_table.insert(msg.author.to_string(), input.to_owned());
+            }
+            Ok((name, res))
+        }
+        Err(err) => match err {
+            caith::RollError::ParseError(_) => Err(format!("Error:\n```\n{}\n```", err)),
+            caith::RollError::ParamError(err) => Err(format!("Error: {}", err)),
+        },
+    }
+}
+
 #[command]
-#[help_available]
+#[aliases("r")]
 #[min_args(1)]
 #[description("Roll dice(s)")]
 async fn roll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
@@ -63,19 +108,36 @@ async fn roll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let msg_to_send = if input.starts_with("help") {
         get_help_msg()
     } else {
-        match caith::roll(input) {
-            Ok(res) => {
-                let name = msg
-                    .author
-                    .nick_in(&ctx.http, msg.guild_id.unwrap())
-                    .await
-                    .unwrap_or_else(|| msg.author.name.to_owned());
-                format!("{} roll: {}", name, res)
-            }
-            Err(err) => match err {
-                caith::RollError::ParseError(_) => format!("Error:\n```\n{}\n```", err),
-                caith::RollError::ParamError(err) => format!("Error: {}", err),
+        match process_roll(input, ctx, msg).await {
+            Ok((name, res)) => format!("{} roll: {}", name, res),
+            Err(msg) => msg,
+        }
+    };
+
+    if let Err(e) = msg.channel_id.say(&ctx.http, msg_to_send).await {
+        eprintln!("Error sending message: {:?}", e);
+    }
+    Ok(())
+}
+
+#[command]
+#[aliases("rr")]
+#[description("Reroll last roll")]
+async fn reroll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let input = args.rest();
+    let msg_to_send = if input.starts_with("help") {
+        get_help_msg()
+    } else {
+        let input = {
+            let reroll_table = REROLL_TABLE.lock().unwrap();
+            reroll_table.get(&msg.author.to_string()).cloned()
+        };
+        match input {
+            Some(input) => match process_roll(&input, ctx, msg).await {
+                Ok((name, res)) => format!("{} reroll `{}`: {}", name, input, res),
+                Err(msg) => msg,
             },
+            None => "No previous roll".to_owned(),
         }
     };
 

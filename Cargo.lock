@@ -130,9 +130,9 @@ checksum = "0e4cec68f03f32e44924783795810fa50a7035d8c8ebe78580ad7e6c703fba38"
 
 [[package]]
 name = "caith"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a7ee0dcefded04b82cfa57bf47db445fa6cb39160c1f168cd4deeb16f305697"
+checksum = "faba90452d57c50049e428c276f0ad141a341f0fe5c4b5cc0e5d14c307df9789"
 dependencies = [
  "once_cell",
  "pest",
@@ -194,9 +194,10 @@ dependencies = [
 
 [[package]]
 name = "disle"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "caith",
+ "once_cell",
  "serenity",
  "tokio",
 ]
