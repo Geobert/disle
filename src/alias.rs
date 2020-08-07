@@ -12,7 +12,6 @@ use serenity::{
 
 async fn is_admin(ctx: &Context, msg: &Message) -> bool {
     if let Some(member) = &msg.member {
-        dbg!(&member);
         for role in &member.roles {
             if role
                 .to_role_cached(&ctx.cache)
