@@ -10,21 +10,28 @@ use serenity::{
     client::Context,
     framework::{
         standard::{
-            macros::{command, group, hook},
-            Args, CommandResult, DispatchError,
+            help_commands,
+            macros::{command, group, help, hook},
+            Args, CommandGroup, CommandResult, DispatchError, HelpOptions,
         },
         StandardFramework,
     },
     http::Http,
-    model::channel::Message,
+    model::{channel::Message, id::UserId},
     Client,
 };
 
 mod alias;
 
 #[group]
-#[commands(roll, reroll, set_alias)]
+#[commands(roll, reroll, reroll_dice)]
 struct Roll;
+
+#[group]
+#[prefix = "alias"]
+#[description = "Alias management commands"]
+#[commands(set_alias)]
+struct Alias;
 
 static REROLL_TABLE: Lazy<Mutex<HashMap<String, String>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
@@ -42,40 +49,27 @@ async fn dispatch_error(ctx: &Context, msg: &Message, error: DispatchError) {
     }
 }
 
-fn get_help_msg() -> String {
-    r#"```
-    /roll xdy [OPTIONS][TARGET][FAILURE][REASON]
-    (or "/r" for short)
-    
-    rolls `x` dices of `y` sides
+#[help]
+#[command_not_found_text = "Could not find: `{}`."]
+#[max_levenshtein_distance(3)]
+#[indention_prefix = "+"]
+#[lacking_permissions = "Hide"]
+#[lacking_role = "Nothing"]
+#[wrong_channel = "Nothing"]
+async fn my_help(
+    context: &Context,
+    msg: &Message,
+    args: Args,
+    help_options: &'static HelpOptions,
+    groups: &[&'static CommandGroup],
+    owners: HashSet<UserId>,
+) -> CommandResult {
+    let _ = help_commands::with_embeds(context, msg, args, help_options, groups, owners).await;
+    Ok(())
+}
 
-    `y` can also be "F" or "f" for Fudge/Fate dice.
-
-    /reroll (or /rr)
-    
-    reroll the last roll of the user
-
-    Options:
-    + - / * : modifiers
-    e#  : Explode value
-    ie# : Indefinite explode value
-    K#  : Keeping # highest (upperacse "K")
-    k#  : Keeping # lowest (lowercase "k")
-    D#  : Dropping the highest (uppercase "D")
-    d#  : Dropping the lowest (lowercase "d")
-    r#  : Reroll if <= value
-    ir# : Indefinite reroll if <= value
-    
-    Target:
-    t#  : Target value to be a success
-
-    Failure: 
-    f#  : Value under which it is count as failuer
-
-    Reason:
-    !   : Any text after `!` will be a comment
-    ```"#
-        .to_string()
+fn get_roll_help_msg() -> String {
+    "To get help, run `/help`".to_string()
 }
 
 async fn process_roll(
@@ -91,8 +85,13 @@ async fn process_roll(
                 .await
                 .unwrap_or_else(|| msg.author.name.to_owned());
             {
+                // do not store comment for reroll
+                let input = match input.find('!') {
+                    Some(idx) => &input[..idx],
+                    None => input,
+                };
                 let mut reroll_table = REROLL_TABLE.lock().unwrap();
-                reroll_table.insert(msg.author.to_string(), input.to_owned());
+                reroll_table.insert(msg.author.to_string(), input.trim().to_owned());
             }
             Ok((name, res))
         }
@@ -105,20 +104,49 @@ async fn process_roll(
 
 #[command]
 #[aliases("r")]
-#[description("Roll dice(s)")]
+/// ```
+/// /roll xdy [OPTIONS][TARGET][FAILURE][REASON]
+///
+/// rolls `x` dices of `y` sides
+///
+/// `y` can also be "F" or "f" for Fudge/Fate dice.
+///
+/// Options:
+///     + - / * : modifiers
+///     e#  : Explode value
+///     ie# : Indefinite explode value
+///     K#  : Keeping # highest (upperacse "K")
+///     k#  : Keeping # lowest (lowercase "k")
+///     D#  : Dropping the highest (uppercase "D")
+///     d#  : Dropping the lowest (lowercase "d")
+///     r#  : Reroll if <= value
+///     ir# : Indefinite reroll if <= value
+///     
+///     Target:
+///     t#  : Target value to be a success
+///
+///     Failure:
+///     f#  : Value under which it is count as failure
+///
+///     Reason:
+///     !   : Any text after `!` will be a comment"
+/// ```
 async fn roll(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     if args.len() == 0 {
-        if let Err(e) = msg.channel_id.say(&ctx.http, get_help_msg()).await {
+        if let Err(e) = msg.channel_id.say(&ctx.http, get_roll_help_msg()).await {
             eprintln!("Error sending message: {:?}", e);
         }
     } else {
         let maybe_alias = args.single::<String>().unwrap();
         let input = match alias::get_alias(&maybe_alias) {
             Some(command) => format!("{} {}", command, args.rest()),
-            None => args.rest().to_owned(),
+            None => {
+                args.restore();
+                args.rest().to_owned()
+            }
         };
         let msg_to_send = if input.starts_with("help") {
-            get_help_msg()
+            get_roll_help_msg()
         } else {
             match process_roll(&input, ctx, msg).await {
                 Ok((name, res)) => format!("{} roll: {}", name, res),
@@ -135,11 +163,15 @@ async fn roll(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 
 #[command]
 #[aliases("rr")]
-#[description("Reroll last roll")]
+/// ```
+/// /reroll (or /rr)
+///
+/// Reroll the last roll of the user
+/// ```
 async fn reroll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let input = args.rest();
     let msg_to_send = if input.starts_with("help") {
-        get_help_msg()
+        get_roll_help_msg()
     } else {
         let input = {
             let reroll_table = REROLL_TABLE.lock().unwrap();
@@ -161,7 +193,41 @@ async fn reroll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 }
 
 #[command]
-#[aliases("setalias")]
+#[aliases("rd")]
+/// ```
+/// /reroll_dice (or /rd)
+///
+/// Reroll the first dice of the last roll
+/// ```
+async fn reroll_dice(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let input = args.rest();
+    let msg_to_send = if input.starts_with("help") {
+        get_roll_help_msg()
+    } else {
+        let input = {
+            let reroll_table = REROLL_TABLE.lock().unwrap();
+            reroll_table.get(&msg.author.to_string()).cloned()
+        };
+        match input {
+            Some(input) => match caith::find_first_dice(&input) {
+                Ok(dice) => match process_roll(&dice, ctx, msg).await {
+                    Ok((name, res)) => format!("{} reroll `{}`: {}", name, dice, res),
+                    Err(msg) => msg,
+                },
+                Err(e) => e.to_string(),
+            },
+            None => "No previous roll".to_owned(),
+        }
+    };
+
+    if let Err(e) = msg.channel_id.say(&ctx.http, msg_to_send).await {
+        eprintln!("Error sending message: {:?}", e);
+    }
+    Ok(())
+}
+
+#[command]
+#[aliases("set")]
 #[min_args(2)]
 async fn set_alias(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     alias::set_alias(ctx, msg, args).await
@@ -194,8 +260,9 @@ async fn main() {
                 .owners(owners)
         })
         .on_dispatch_error(dispatch_error)
-        // .help(&MY_HELP)
-        .group(&ROLL_GROUP);
+        .help(&MY_HELP)
+        .group(&ROLL_GROUP)
+        .group(&ALIAS_GROUP);
 
     let mut client = Client::new(&token)
         .framework(framework)
