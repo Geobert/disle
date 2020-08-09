@@ -167,7 +167,7 @@ dependencies = [
 [[package]]
 name = "command_attr"
 version = "0.2.0"
-source = "git+https://github.com/acdenisSK/serenity?branch=await_next#91c30f43274481c7dfa57850cbe9c3ab18cd708f"
+source = "git+https://github.com/acdenisSK/serenity?rev=8c8a172e7f19ed792440547c7ef99d15aadb3938#8c8a172e7f19ed792440547c7ef99d15aadb3938"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1038,7 +1038,7 @@ dependencies = [
 [[package]]
 name = "serenity"
 version = "0.8.6"
-source = "git+https://github.com/acdenisSK/serenity?branch=await_next#91c30f43274481c7dfa57850cbe9c3ab18cd708f"
+source = "git+https://github.com/acdenisSK/serenity?rev=8c8a172e7f19ed792440547c7ef99d15aadb3938#8c8a172e7f19ed792440547c7ef99d15aadb3938"
 dependencies = [
  "async-tls",
  "async-trait",

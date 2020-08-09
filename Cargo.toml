@@ -16,4 +16,4 @@ futures = "0.3.5"
 
 [dependencies.serenity]
 git = "https://github.com/acdenisSK/serenity"
-branch = "await_next"
+rev = "8c8a172e7f19ed792440547c7ef99d15aadb3938"
