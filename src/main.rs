@@ -9,7 +9,8 @@ use caith::RollResult;
 use futures::future::FutureExt;
 use once_cell::sync::Lazy;
 use serenity::{
-    client::Context,
+    async_trait,
+    client::{Context, EventHandler},
     framework::{
         standard::{
             help_commands,
@@ -21,12 +22,36 @@ use serenity::{
     http::Http,
     model::{
         channel::Message,
-        id::{ChannelId, UserId},
+        guild::GuildStatus,
+        id::{ChannelId, GuildId, UserId},
+        prelude::Ready,
     },
     Client,
 };
 
 mod alias;
+
+struct Handler;
+
+#[async_trait]
+impl EventHandler for Handler {
+    async fn ready(&self, _: Context, ready: Ready) {
+        println!("{} is connected!", ready.user.name);
+        for guild in ready.guilds {
+            let guild_id = match guild {
+                GuildStatus::OnlinePartialGuild(g) => g.id,
+                GuildStatus::OnlineGuild(g) => g.id,
+                GuildStatus::Offline(g) => g.id,
+                GuildStatus::__Nonexhaustive => GuildId(0),
+            };
+            if guild_id != GuildId(0) {
+                if let Err(e) = alias::load_alias_data(*guild_id.as_u64()) {
+                    eprintln!("{}", e);
+                }
+            }
+        }
+    }
+}
 
 #[group]
 #[commands(roll, reroll, reroll_dice)]
@@ -154,7 +179,7 @@ async fn roll(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
         }
     } else {
         let maybe_alias = args.single::<String>().unwrap();
-        let input = match alias::get_alias(&maybe_alias) {
+        let input = match alias::get_alias(msg, &maybe_alias) {
             Some(command) => format!("{} {}", command, args.rest()),
             None => {
                 args.restore();
@@ -323,7 +348,7 @@ async fn disallow_user_alias(ctx: &Context, msg: &Message, args: Args) -> Comman
 /// List defined aliases
 /// ```
 async fn list_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
-    let aliases = alias::list_aliases();
+    let aliases = alias::list_aliases(msg);
     let msg_to_send = if !aliases.is_empty() {
         aliases
             .iter()
@@ -349,7 +374,7 @@ async fn list_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
 /// List authorized users
 /// ```
 async fn list_users(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
-    let users = alias::list_allowed_users();
+    let users = alias::list_allowed_users(msg);
     let msg_to_send = if !users.is_empty() {
         let mut list = "Allowed users:\n".to_string();
         for user_str in &users {
@@ -385,7 +410,7 @@ async fn list_users(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
 /// Persist alias data
 /// ```
 async fn save_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
-    let msg_to_send = match alias::save_alias_data() {
+    let msg_to_send = match alias::save_alias_data(alias::guild_id(msg)) {
         Ok(_) => "Configuration saved".to_owned(),
         Err(e) => format!("Error on saving: {}", e),
     };
@@ -403,7 +428,7 @@ async fn save_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
 /// Load persistent alias data
 /// ```
 async fn load_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
-    let msg_to_send = match alias::load_alias_data() {
+    let msg_to_send = match alias::load_alias_data(alias::guild_id(msg)) {
         Ok(_) => "Configuration loaded".to_owned(),
         Err(e) => format!("Error on loading: {}", e),
     };
@@ -420,7 +445,7 @@ async fn load_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
 /// Delete all aliases. You can still undo this with a `load` until a `save` or a bot reboot.
 /// ```
 async fn clear_aliases(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
-    alias::clear_aliases();
+    alias::clear_aliases(msg);
     send_message(
         ctx,
         msg.channel_id,
@@ -438,7 +463,7 @@ async fn clear_aliases(ctx: &Context, msg: &Message, _args: Args) -> CommandResu
 /// Delete all allowed users. You can still undo this with a `load` until a `save` or a bot reboot.
 /// ```
 async fn clear_users(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
-    alias::clear_users();
+    alias::clear_users(msg);
     send_message(
         ctx,
         msg.channel_id,
@@ -473,10 +498,6 @@ async fn main() {
         Err(why) => panic!("Could not access application info: {:?}", why),
     };
 
-    if let Err(e) = alias::load_alias_data() {
-        eprintln!("{:?}", e);
-    }
-
     let framework = StandardFramework::new()
         .configure(|c| {
             c.with_whitespace(true)
@@ -491,6 +512,7 @@ async fn main() {
         .group(&ALIAS_GROUP);
 
     let mut client = Client::new(&token)
+        .event_handler(Handler)
         .framework(framework)
         .await
         .expect("Err creating client");
@@ -507,10 +529,7 @@ async fn main() {
             .await
             .expect("Failed to listen for event");
         println!("Exiting…");
-        match alias::save_alias_data() {
-            Ok(_) => (),
-            Err(e) => eprintln!("{:?}", e),
-        }
+        alias::save_all();
     };
 
     futures::future::select(handle_client.boxed(), handle_ctrlc.boxed()).await;

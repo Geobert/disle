@@ -1,3 +1,6 @@
+# 0.4.1
+- Alias config saved per server now
+
 # 0.4.0
 - Update to `caith` 0.5.0 to get fudge dice support
 - Add `/help`
