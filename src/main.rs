@@ -1,10 +1,12 @@
 use std::{
     collections::{HashMap, HashSet},
     env,
+    str::FromStr,
     sync::Mutex,
 };
 
 use caith::RollResult;
+use futures::future::FutureExt;
 use once_cell::sync::Lazy;
 use serenity::{
     client::Context,
@@ -17,7 +19,10 @@ use serenity::{
         StandardFramework,
     },
     http::Http,
-    model::{channel::Message, id::UserId},
+    model::{
+        channel::Message,
+        id::{ChannelId, UserId},
+    },
     Client,
 };
 
@@ -30,7 +35,18 @@ struct Roll;
 #[group]
 #[prefix = "alias"]
 #[description = "Alias management commands"]
-#[commands(set_alias)]
+#[commands(
+    list_alias,
+    set_alias,
+    del_alias,
+    list_users,
+    allow_user_alias,
+    disallow_user_alias,
+    save_alias,
+    load_alias,
+    clear_aliases,
+    clear_users
+)]
 struct Alias;
 
 static REROLL_TABLE: Lazy<Mutex<HashMap<String, String>>> =
@@ -153,10 +169,7 @@ async fn roll(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
                 Err(msg) => msg,
             }
         };
-
-        if let Err(e) = msg.channel_id.say(&ctx.http, msg_to_send).await {
-            eprintln!("Error sending message: {:?}", e);
-        }
+        send_message(ctx, msg.channel_id, &msg_to_send).await;
     }
     Ok(())
 }
@@ -186,9 +199,7 @@ async fn reroll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         }
     };
 
-    if let Err(e) = msg.channel_id.say(&ctx.http, msg_to_send).await {
-        eprintln!("Error sending message: {:?}", e);
-    }
+    send_message(ctx, msg.channel_id, &msg_to_send).await;
     Ok(())
 }
 
@@ -220,17 +231,228 @@ async fn reroll_dice(ctx: &Context, msg: &Message, args: Args) -> CommandResult 
         }
     };
 
-    if let Err(e) = msg.channel_id.say(&ctx.http, msg_to_send).await {
-        eprintln!("Error sending message: {:?}", e);
+    send_message(ctx, msg.channel_id, &msg_to_send).await;
+    Ok(())
+}
+
+//
+// Alias commands
+//
+
+#[command]
+#[aliases("set")]
+#[min_args(2)]
+/// ```
+/// /alias set alias_name roll_command
+///
+/// Create or replace an alias with roll_command.
+/// The alias will be callable in a /roll command.
+///
+/// Command only available to role with Administrator permission.
+/// ```
+async fn set_alias(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    alias::set_alias(ctx, msg, args).await;
+    Ok(())
+}
+
+#[command]
+#[aliases("del")]
+#[min_args(1)]
+/// ```
+/// /alias del alias_name
+///
+/// Remove an alias
+/// ```
+async fn del_alias(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    alias::del_alias(ctx, msg, args.rest()).await;
+    Ok(())
+}
+
+#[command]
+#[aliases("allow", "au")]
+#[min_args(1)]
+/// ```
+/// /alias allow alias_name
+///
+/// Remove an alias
+/// ```
+async fn allow_user_alias(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let user = args.rest();
+    if user.starts_with("<@") {
+        alias::allow_user(ctx, msg, user).await;
+    } else {
+        send_message(
+            ctx,
+            msg.channel_id,
+            "User to add must be mentioned (with `@`)",
+        )
+        .await;
     }
     Ok(())
 }
 
 #[command]
-#[aliases("set")]
-#[min_args(2)]
-async fn set_alias(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    alias::set_alias(ctx, msg, args).await
+#[aliases("disallow", "du")]
+#[min_args(1)]
+/// ```
+/// /alias disallow alias_name
+///
+/// Remove an alias
+/// ```
+async fn disallow_user_alias(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let user = args.rest();
+    if user.starts_with("<@") {
+        alias::disallow_user(ctx, msg, user).await;
+    } else {
+        send_message(
+            ctx,
+            msg.channel_id,
+            "User to add must be mentionne (with `@`)",
+        )
+        .await;
+    }
+    Ok(())
+}
+
+#[command]
+#[aliases("list", "l")]
+#[max_args(0)]
+/// ```
+/// /alias list
+///
+/// List defined aliases
+/// ```
+async fn list_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
+    let aliases = alias::list_aliases();
+    let msg_to_send = if !aliases.is_empty() {
+        aliases
+            .iter()
+            .fold("Existing aliases:\n".to_string(), |mut acc, s| {
+                acc.push_str(&s);
+                acc.push('\n');
+                acc
+            })
+    } else {
+        "No alias defined".to_owned()
+    };
+
+    send_message(ctx, msg.channel_id, &msg_to_send).await;
+    Ok(())
+}
+
+#[command]
+#[aliases("users", "u")]
+#[max_args(0)]
+/// ```
+/// /alias users
+///
+/// List authorized users
+/// ```
+async fn list_users(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
+    let users = alias::list_allowed_users();
+    let msg_to_send = if !users.is_empty() {
+        let mut list = "Allowed users:\n".to_string();
+        for user_str in &users {
+            let user_id: UserId = UserId::from_str(user_str.as_str()).unwrap();
+            match user_id.to_user(&ctx.http).await {
+                Ok(user) => {
+                    let name = user
+                        .nick_in(&ctx.http, msg.guild_id.unwrap())
+                        .await
+                        .unwrap_or_else(|| user.name.to_owned());
+                    list.push_str("- ");
+                    list.push_str(&name);
+                    list.push('\n');
+                }
+                Err(_) => (),
+            }
+        }
+        list
+    } else {
+        "No allowed user".to_owned()
+    };
+
+    send_message(ctx, msg.channel_id, &msg_to_send).await;
+    Ok(())
+}
+
+#[command]
+#[aliases("save")]
+#[max_args(0)]
+/// ```
+/// /alias save
+///
+/// Persist alias data
+/// ```
+async fn save_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
+    let msg_to_send = match alias::save_alias_data() {
+        Ok(_) => "Configuration saved".to_owned(),
+        Err(e) => format!("Error on saving: {}", e),
+    };
+
+    send_message(ctx, msg.channel_id, &msg_to_send).await;
+    Ok(())
+}
+
+#[command]
+#[aliases("load")]
+#[max_args(0)]
+/// ```
+/// /alias load
+///
+/// Load persistent alias data
+/// ```
+async fn load_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
+    let msg_to_send = match alias::load_alias_data() {
+        Ok(_) => "Configuration loaded".to_owned(),
+        Err(e) => format!("Error on loading: {}", e),
+    };
+
+    send_message(ctx, msg.channel_id, &msg_to_send).await;
+    Ok(())
+}
+
+#[command]
+#[max_args(0)]
+/// ```
+/// /alias clear_aliases
+///
+/// Delete all aliases. You can still undo this with a `load` until a `save` or a bot reboot.
+/// ```
+async fn clear_aliases(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
+    alias::clear_aliases();
+    send_message(
+        ctx,
+        msg.channel_id,
+        "Aliases cleared. You can still undo this with a `load` until a `save` or a bot reboot.",
+    )
+    .await;
+    Ok(())
+}
+
+#[command]
+#[max_args(0)]
+/// ```
+/// /alias clear_users
+///
+/// Delete all allowed users. You can still undo this with a `load` until a `save` or a bot reboot.
+/// ```
+async fn clear_users(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
+    alias::clear_users();
+    send_message(
+        ctx,
+        msg.channel_id,
+        "Users cleared. You can still undo this with a `load` until a `save` or a bot reboot.",
+    )
+    .await;
+    Ok(())
+}
+
+#[inline]
+pub async fn send_message(ctx: &Context, channel_id: ChannelId, msg_to_send: &str) {
+    if let Err(e) = channel_id.say(&ctx.http, msg_to_send).await {
+        eprintln!("Error sending message: {:?}", e);
+    }
 }
 
 #[tokio::main]
@@ -251,6 +473,10 @@ async fn main() {
         Err(why) => panic!("Could not access application info: {:?}", why),
     };
 
+    if let Err(e) = alias::load_alias_data() {
+        eprintln!("{:?}", e);
+    }
+
     let framework = StandardFramework::new()
         .configure(|c| {
             c.with_whitespace(true)
@@ -269,7 +495,23 @@ async fn main() {
         .await
         .expect("Err creating client");
 
-    if let Err(why) = client.start().await {
-        println!("Client error: {:?}", why);
-    }
+    let handle_client = async {
+        if let Err(why) = client.start().await {
+            println!("Client error: {:?}", why);
+        }
+    };
+
+    let handle_ctrlc = async {
+        println!("Bot running, quit with Ctrl-C");
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to listen for event");
+        println!("Exiting…");
+        match alias::save_alias_data() {
+            Ok(_) => (),
+            Err(e) => eprintln!("{:?}", e),
+        }
+    };
+
+    futures::future::select(handle_client.boxed(), handle_ctrlc.boxed()).await;
 }

@@ -16,16 +16,15 @@ You need to host the bot yourself.
 - Go the this modified URL and allow the bot to your Discord's server.
 
 # Usage
+## Help
+Type `/help` to get all the available help and `/help <command>` to get help on the command.
 
+## Roll basics
 ```
 /roll xdy [OPTIONS][TARGET][FAILURE][REASON]
 (or "/r" for short)
   
 rolls x dices of y sides
-
-/reroll (or /rr)
-    
-reroll the last roll of the user
 
 Options:
 + - / * : modifiers
@@ -50,3 +49,27 @@ Reason:
 
 See the underlying crate `caith`'s [Readme for the full syntax](https://github.com/Geobert/caith/blob/master/README.md)
 
+## Aliases
+
+You can set alias to roll expression:
+```
+/alias set fs 1d6ie6 - 1d6ie6
+> Alias fs set
+
+/r fs
+> Geob roll: [4] - [5] Result: -1
+```
+
+To use aliases, you need to create a role in the server with Administrator permission.
+
+The administrator can manipulate aliases, and can add/remove user to the list of people
+allowed to manipulate aliases:
+
+```
+/alias allow @User<Tab>
+/alias disallow @User<Tab>
+```
+
+It is important to use the `Tab` key to complete the user to get the mention.
+
+Once in the list, the user can add/delete alias without having Administrator permission.

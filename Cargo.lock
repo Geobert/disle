@@ -130,9 +130,9 @@ checksum = "0e4cec68f03f32e44924783795810fa50a7035d8c8ebe78580ad7e6c703fba38"
 
 [[package]]
 name = "caith"
-version = "0.3.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "faba90452d57c50049e428c276f0ad141a341f0fe5c4b5cc0e5d14c307df9789"
+checksum = "bdd40048edacbc819898beda98a72408c9d1e5b07939012f7fd088fc733ce0fa"
 dependencies = [
  "once_cell",
  "pest",
@@ -194,10 +194,13 @@ dependencies = [
 
 [[package]]
 name = "disle"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "caith",
+ "futures",
  "once_cell",
+ "ron",
+ "serde",
  "serenity",
  "tokio",
 ]
@@ -921,6 +924,17 @@ dependencies = [
  "untrusted",
  "web-sys",
  "winapi 0.3.9",
+]
+
+[[package]]
+name = "ron"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a91260f321dbf3b5a16ff91c451dc9eb644ce72775a6812f9c3dfffe63818f8f"
+dependencies = [
+ "base64 0.12.3",
+ "bitflags",
+ "serde",
 ]
 
 [[package]]
