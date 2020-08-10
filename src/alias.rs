@@ -221,15 +221,3 @@ pub(crate) fn load_alias_data(guild_id: u64) -> std::io::Result<()> {
     }
     Ok(())
 }
-
-pub(crate) fn load_data_if_needed(guild_id: u64) -> std::io::Result<()> {
-    let need = {
-        let all_data = DATA_TABLE.lock().unwrap();
-        all_data.get(&guild_id).is_none()
-    };
-    if need {
-        load_alias_data(guild_id)
-    } else {
-        Ok(())
-    }
-}

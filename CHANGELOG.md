@@ -1,3 +1,6 @@
+# 0.4.4
+- More efficient workaround to auto load config in DM
+
 # 0.4.3
 - Fix rolling in DM
 - Add a workaround to auto load config on DM channel

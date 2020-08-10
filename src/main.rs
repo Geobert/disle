@@ -31,6 +31,8 @@ use serenity::{
 
 mod alias;
 
+static DM_IS_INIT: Lazy<Mutex<HashSet<u64>>> = Lazy::new(|| Mutex::new(HashSet::new()));
+
 struct Handler;
 
 #[async_trait]
@@ -53,8 +55,13 @@ impl EventHandler for Handler {
     }
 
     async fn private_channel_create(&self, _ctx: Context, channel: &PrivateChannel) {
-        if let Err(e) = alias::load_data_if_needed(*channel.id.as_u64()) {
-            eprintln!("{}", e);
+        let mut dm_is_init = DM_IS_INIT.lock().unwrap();
+        if dm_is_init.get(channel.id.as_u64()).is_none() {
+            if let Err(e) = alias::load_alias_data(*channel.id.as_u64()) {
+                eprintln!("{}", e);
+            } else {
+                dm_is_init.insert(*channel.id.as_u64());
+            }
         }
     }
 }
