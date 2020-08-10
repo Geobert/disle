@@ -1,3 +1,6 @@
+# 0.4.2
+- In DM, there's no role, so allow alias management by default
+
 # 0.4.1
 - Alias config saved per server now
 

@@ -46,8 +46,10 @@ async fn is_admin(ctx: &Context, msg: &Message) -> bool {
                 return true;
             }
         }
+        false
+    } else {
+        true // not in a chatroom = direct message, no role, allow all
     }
-    false
 }
 
 fn is_allowed(guild_id: u64, user: &str) -> bool {
