@@ -21,7 +21,7 @@ use serenity::{
     },
     http::Http,
     model::{
-        channel::Message,
+        channel::{Message, PrivateChannel},
         guild::GuildStatus,
         id::{ChannelId, GuildId, UserId},
         prelude::Ready,
@@ -49,6 +49,12 @@ impl EventHandler for Handler {
                     eprintln!("{}", e);
                 }
             }
+        }
+    }
+
+    async fn private_channel_create(&self, _ctx: Context, channel: &PrivateChannel) {
+        if let Err(e) = alias::load_data_if_needed(*channel.id.as_u64()) {
+            eprintln!("{}", e);
         }
     }
 }
