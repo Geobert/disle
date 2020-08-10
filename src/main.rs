@@ -120,11 +120,15 @@ async fn process_roll(
 ) -> Result<(String, RollResult), String> {
     match caith::roll(input) {
         Ok(res) => {
-            let name = msg
-                .author
-                .nick_in(&ctx.http, msg.guild_id.unwrap())
-                .await
-                .unwrap_or_else(|| msg.author.name.to_owned());
+            let name = match msg.guild_id {
+                Some(guild_id) => msg
+                    .author
+                    .nick_in(&ctx.http, guild_id)
+                    .await
+                    .unwrap_or_else(|| msg.author.name.to_owned()),
+                None => msg.author.name.to_owned(),
+            };
+
             {
                 // do not store comment for reroll
                 let input = match input.find('!') {
