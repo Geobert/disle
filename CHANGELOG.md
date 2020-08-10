@@ -1,3 +1,7 @@
+# 0.4.3
+- Fix rolling in DM
+- Add a workaround to auto load config on DM channel
+
 # 0.4.2
 - In DM, there's no role, so allow alias management by default
 
