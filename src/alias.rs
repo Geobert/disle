@@ -35,6 +35,21 @@ impl Data {
     }
 }
 
+pub(crate) async fn is_super_user(ctx: &Context, msg: &Message) -> bool {
+    is_owner(ctx, msg).await || is_admin(ctx, msg).await
+}
+
+async fn is_owner(ctx: &Context, msg: &Message) -> bool {
+    if let Some(guild_id) = msg.guild_id {
+        ctx.cache
+            .guild_field(guild_id, |guild| msg.author.id == guild.owner_id)
+            .await
+            .unwrap_or(false)
+    } else {
+        false
+    }
+}
+
 async fn is_admin(ctx: &Context, msg: &Message) -> bool {
     if let Some(member) = &msg.member {
         for role in &member.roles {
@@ -69,30 +84,32 @@ pub(crate) fn guild_id(msg: &Message) -> u64 {
 
 pub(crate) async fn set_alias(ctx: &Context, msg: &Message, mut args: Args) {
     let guild_id = guild_id(msg);
-    let msg_to_send = if is_allowed(guild_id, &msg.author.to_string()) || is_admin(ctx, msg).await {
-        let alias = args.single::<String>().unwrap();
-        let command = args.rest().to_string();
-        let mut all_data = DATA_TABLE.lock().unwrap();
-        let data = all_data.entry(guild_id).or_insert(Data::new());
-        let msg = format!("Alias `{}` set", alias);
-        data.aliases.insert(alias, command);
-        msg
-    } else {
-        "You are not allowed to set aliases".to_owned()
-    };
+    let msg_to_send =
+        if is_allowed(guild_id, &msg.author.to_string()) || is_super_user(ctx, msg).await {
+            let alias = args.single::<String>().unwrap();
+            let command = args.rest().to_string();
+            let mut all_data = DATA_TABLE.lock().unwrap();
+            let data = all_data.entry(guild_id).or_insert(Data::new());
+            let msg = format!("Alias `{}` set", alias);
+            data.aliases.insert(alias, command);
+            msg
+        } else {
+            "You are not allowed to set aliases".to_owned()
+        };
     send_message(ctx, msg.channel_id, &msg_to_send).await;
 }
 
 pub(crate) async fn del_alias(ctx: &Context, msg: &Message, alias: &str) {
     let guild_id = guild_id(msg);
-    let msg_to_send = if is_allowed(guild_id, &msg.author.to_string()) || is_admin(ctx, msg).await {
-        let mut all_data = DATA_TABLE.lock().unwrap();
-        let data = all_data.entry(guild_id).or_insert(Data::new());
-        data.aliases.remove(alias);
-        format!("Alias `{}` deleted", alias)
-    } else {
-        "Only admin can delete aliases".to_owned()
-    };
+    let msg_to_send =
+        if is_allowed(guild_id, &msg.author.to_string()) || is_super_user(ctx, msg).await {
+            let mut all_data = DATA_TABLE.lock().unwrap();
+            let data = all_data.entry(guild_id).or_insert(Data::new());
+            data.aliases.remove(alias);
+            format!("Alias `{}` deleted", alias)
+        } else {
+            "Only admin can delete aliases".to_owned()
+        };
     send_message(ctx, msg.channel_id, &msg_to_send).await;
 }
 
@@ -120,26 +137,26 @@ pub(crate) fn list_aliases(msg: &Message) -> Vec<String> {
 
 pub(crate) async fn allow_user(ctx: &Context, msg: &Message, user: &str) {
     let guild_id = guild_id(msg);
-    let msg_to_send = if is_admin(ctx, msg).await {
+    let msg_to_send = if is_super_user(ctx, msg).await {
         let mut all_data = DATA_TABLE.lock().unwrap();
         let data = all_data.entry(guild_id).or_insert(Data::new());
         data.users.insert(user.to_string());
         format!("{} has been allowed to manipulate alias", user)
     } else {
-        "Only admin can allow a user to alias commands".to_owned()
+        "Only administrator or server's owner can allow a user to alias commands".to_owned()
     };
     send_message(ctx, msg.channel_id, &msg_to_send).await;
 }
 
 pub(crate) async fn disallow_user(ctx: &Context, msg: &Message, user: &str) {
     let guild_id = guild_id(msg);
-    let msg_to_send = if is_admin(ctx, msg).await {
+    let msg_to_send = if is_super_user(ctx, msg).await {
         let mut all_data = DATA_TABLE.lock().unwrap();
         let data = all_data.entry(guild_id).or_insert(Data::new());
         data.users.remove(user);
         format!("{} has been disallowed to manipulate alias", user)
     } else {
-        "Only admin can disallow a user to alias commands".to_owned()
+        "Only administrator or server's owner disallow a user to alias commands".to_owned()
     };
     send_message(ctx, msg.channel_id, &msg_to_send).await;
 }
@@ -157,25 +174,43 @@ pub(crate) fn list_allowed_users(msg: &Message) -> Vec<String> {
     }
 }
 
-pub(crate) fn clear_users(msg: &Message) {
-    let guild_id = guild_id(msg);
-    let mut all_data = DATA_TABLE.lock().unwrap();
-    if let Some(data) = all_data.get_mut(&guild_id) {
-        data.users.clear();
-    }
+pub(crate) async fn clear_users(ctx: &Context, msg: &Message) {
+    let msg_to_send = if is_super_user(ctx, msg).await {
+        let guild_id = guild_id(msg);
+        let mut all_data = DATA_TABLE.lock().unwrap();
+        if let Some(data) = all_data.get_mut(&guild_id) {
+            data.users.clear();
+        }
+        "Users cleared. You can still undo this with a `load` until a `save` or a bot reboot."
+    } else {
+        "Only administrator or owner can clear allowed users list"
+    };
+
+    send_message(ctx, msg.channel_id, msg_to_send).await;
 }
 
-pub(crate) fn clear_aliases(msg: &Message) {
-    let guild_id = guild_id(msg);
-    let mut all_data = DATA_TABLE.lock().unwrap();
-    if let Some(data) = all_data.get_mut(&guild_id) {
-        data.aliases.clear();
-    }
+pub(crate) async fn clear_aliases(ctx: &Context, msg: &Message) {
+    let msg_to_send = if is_super_user(ctx, msg).await {
+        let guild_id = guild_id(msg);
+        let mut all_data = DATA_TABLE.lock().unwrap();
+        if let Some(data) = all_data.get_mut(&guild_id) {
+            data.aliases.clear();
+        }
+        "Aliases cleared. You can still undo this with a `load` until a `save` or a bot reboot."
+    } else {
+        "Only administrator or owner can clear aliases"
+    };
+
+    send_message(ctx, msg.channel_id, msg_to_send).await;
 }
+
+// save and load are not protected by permission here because they can be called without a command
+// at startup/shutdown of the bot.
+//
+// The permissions are checked in the commands
 
 pub(crate) fn save_alias_data(guild_id: u64) -> std::io::Result<()> {
     let all_data = DATA_TABLE.lock().unwrap();
-
     match all_data.get(&guild_id) {
         Some(data) => {
             let ser = ron::ser::to_string_pretty(&data, Default::default()).unwrap();

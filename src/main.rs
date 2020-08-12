@@ -29,6 +29,9 @@ use serenity::{
     Client,
 };
 
+#[cfg(unix)]
+use tokio::signal::unix::{signal, SignalKind};
+
 mod alias;
 
 static DM_IS_INIT: Lazy<Mutex<HashSet<u64>>> = Lazy::new(|| Mutex::new(HashSet::new()));
@@ -427,9 +430,14 @@ async fn list_users(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
 /// Persist alias data
 /// ```
 async fn save_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
-    let msg_to_send = match alias::save_alias_data(alias::guild_id(msg)) {
-        Ok(_) => "Configuration saved".to_owned(),
-        Err(e) => format!("Error on saving: {}", e),
+    // Permission check done here because save_alias_data is called on shutdown as well
+    let msg_to_send = if alias::is_super_user(ctx, msg).await {
+        match alias::save_alias_data(alias::guild_id(msg)) {
+            Ok(_) => "Configuration saved".to_owned(),
+            Err(e) => format!("Error on saving: {}", e),
+        }
+    } else {
+        "Only administrator or owner can save configuration".to_owned()
     };
 
     send_message(ctx, msg.channel_id, &msg_to_send).await;
@@ -445,9 +453,14 @@ async fn save_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
 /// Load persistent alias data
 /// ```
 async fn load_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
-    let msg_to_send = match alias::load_alias_data(alias::guild_id(msg)) {
-        Ok(_) => "Configuration loaded".to_owned(),
-        Err(e) => format!("Error on loading: {}", e),
+    // Permission check done here because load_alias_data is called on startup as well
+    let msg_to_send = if alias::is_super_user(ctx, msg).await {
+        match alias::load_alias_data(alias::guild_id(msg)) {
+            Ok(_) => "Configuration loaded".to_owned(),
+            Err(e) => format!("Error on loading: {}", e),
+        }
+    } else {
+        "Only administrator or owner can load configuration".to_owned()
     };
 
     send_message(ctx, msg.channel_id, &msg_to_send).await;
@@ -462,13 +475,7 @@ async fn load_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
 /// Delete all aliases. You can still undo this with a `load` until a `save` or a bot reboot.
 /// ```
 async fn clear_aliases(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
-    alias::clear_aliases(msg);
-    send_message(
-        ctx,
-        msg.channel_id,
-        "Aliases cleared. You can still undo this with a `load` until a `save` or a bot reboot.",
-    )
-    .await;
+    alias::clear_aliases(ctx, msg).await;
     Ok(())
 }
 
@@ -480,13 +487,7 @@ async fn clear_aliases(ctx: &Context, msg: &Message, _args: Args) -> CommandResu
 /// Delete all allowed users. You can still undo this with a `load` until a `save` or a bot reboot.
 /// ```
 async fn clear_users(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
-    alias::clear_users(msg);
-    send_message(
-        ctx,
-        msg.channel_id,
-        "Users cleared. You can still undo this with a `load` until a `save` or a bot reboot.",
-    )
-    .await;
+    alias::clear_users(ctx, msg).await;
     Ok(())
 }
 
@@ -536,7 +537,7 @@ async fn main() {
 
     let handle_client = async {
         if let Err(why) = client.start().await {
-            println!("Client error: {:?}", why);
+            eprintln!("Client error: {:?}", why);
         }
     };
 
@@ -549,5 +550,20 @@ async fn main() {
         alias::save_all();
     };
 
-    futures::future::select(handle_client.boxed(), handle_ctrlc.boxed()).await;
+    #[cfg(unix)]
+    let handle_sigterm = async {
+        let mut stream = signal(SignalKind::sigterm());
+        stream.recv().await;
+        println!("Stoping…");
+        alias::save_all();
+    };
+
+    let all_fut = vec![
+        handle_client.boxed(),
+        handle_ctrlc.boxed(),
+        #[cfg(unix)]
+        handle_sigterm.boxed(),
+    ];
+
+    futures::future::select_all(all_fut).await;
 }

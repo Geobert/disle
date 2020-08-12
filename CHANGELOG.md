@@ -1,3 +1,9 @@
+# 0.4.5
+- No need for Admin permission for the owner anymore
+- Permission check on clear users/aliases
+- Permission check on save/load config
+- Handle SIGTERM to save configuration on shutdown by supervisord (unix only)
+
 # 0.4.4
 - More efficient workaround to auto load config in DM
 
