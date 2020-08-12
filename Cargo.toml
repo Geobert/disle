@@ -13,7 +13,4 @@ once_cell = "1.4.0"
 ron = "0.6.0"
 serde = { version = "1.0.114", features = ["serde_derive"] }
 futures = "0.3.5"
-
-[dependencies.serenity]
-git = "https://github.com/acdenisSK/serenity"
-rev = "8c8a172e7f19ed792440547c7ef99d15aadb3938"
+serenity = "0.9.0-rc.0"

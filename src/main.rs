@@ -552,7 +552,7 @@ async fn main() {
 
     #[cfg(unix)]
     let handle_sigterm = async {
-        let mut stream = signal(SignalKind::sigterm());
+        let mut stream = signal(SignalKind::terminate()).expect("Error on getting sigterm stream");
         stream.recv().await;
         println!("Stoping…");
         alias::save_all();
