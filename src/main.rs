@@ -2,12 +2,11 @@ use std::{
     collections::{HashMap, HashSet},
     env,
     str::FromStr,
-    sync::Mutex,
 };
 
 use caith::RollResult;
 use futures::future::FutureExt;
-use once_cell::sync::Lazy;
+
 use serenity::{
     async_trait,
     client::{Context, EventHandler},
@@ -26,6 +25,7 @@ use serenity::{
         id::{ChannelId, GuildId, UserId},
         prelude::Ready,
     },
+    prelude::TypeMapKey,
     Client,
 };
 
@@ -34,13 +34,28 @@ use tokio::signal::unix::{signal, SignalKind};
 
 mod alias;
 
-static DM_IS_INIT: Lazy<Mutex<HashSet<u64>>> = Lazy::new(|| Mutex::new(HashSet::new()));
+struct InitDMTable;
+
+impl TypeMapKey for InitDMTable {
+    type Value = HashSet<u64>;
+}
+
+struct RerollTable;
+
+impl TypeMapKey for RerollTable {
+    type Value = HashMap<String, caith::Roller>;
+}
+
+pub(crate) struct Aliases;
+impl TypeMapKey for Aliases {
+    type Value = HashMap<u64, alias::Data>;
+}
 
 struct Handler;
 
 #[async_trait]
 impl EventHandler for Handler {
-    async fn ready(&self, _: Context, ready: Ready) {
+    async fn ready(&self, ctx: Context, ready: Ready) {
         println!("{} is connected!", ready.user.name);
         for guild in ready.guilds {
             let guild_id = match guild {
@@ -50,17 +65,18 @@ impl EventHandler for Handler {
                 GuildStatus::__Nonexhaustive => GuildId(0),
             };
             if guild_id != GuildId(0) {
-                if let Err(e) = alias::load_alias_data(*guild_id.as_u64()) {
+                if let Err(e) = alias::load_alias_data(&ctx, *guild_id.as_u64()).await {
                     eprintln!("{}", e);
                 }
             }
         }
     }
 
-    async fn private_channel_create(&self, _ctx: Context, channel: &PrivateChannel) {
-        let mut dm_is_init = DM_IS_INIT.lock().unwrap();
+    async fn private_channel_create(&self, ctx: Context, channel: &PrivateChannel) {
+        let mut data = ctx.data.write().await;
+        let dm_is_init = data.get_mut::<InitDMTable>().unwrap();
         if dm_is_init.get(channel.id.as_u64()).is_none() {
-            if let Err(e) = alias::load_alias_data(*channel.id.as_u64()) {
+            if let Err(e) = alias::load_alias_data(&ctx, *channel.id.as_u64()).await {
                 eprintln!("{}", e);
             } else {
                 dm_is_init.insert(*channel.id.as_u64());
@@ -89,9 +105,6 @@ struct Roll;
     clear_users
 )]
 struct Alias;
-
-static REROLL_TABLE: Lazy<Mutex<HashMap<String, String>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[hook]
 async fn dispatch_error(ctx: &Context, msg: &Message, error: DispatchError) {
@@ -129,37 +142,51 @@ fn get_roll_help_msg() -> String {
     "To get help, run `/help`".to_string()
 }
 
-async fn process_roll(
+fn err_message(err: caith::RollError) -> String {
+    match err {
+        caith::RollError::ParseError(_) => format!("Error:\n```\n{}\n```", err),
+        caith::RollError::ParamError(err) => format!("Error: {}", err),
+    }
+}
+
+async fn process_roll_str(
     input: &str,
     ctx: &Context,
     msg: &Message,
 ) -> Result<(String, RollResult), String> {
-    match caith::roll(input) {
-        Ok(res) => {
-            let name = match msg.guild_id {
-                Some(guild_id) => msg
-                    .author
-                    .nick_in(&ctx.http, guild_id)
-                    .await
-                    .unwrap_or_else(|| msg.author.name.to_owned()),
-                None => msg.author.name.to_owned(),
-            };
+    // TODO: once caith can save the parsed result, manage error on `new`
+    process_roll(caith::Roller::new(input).unwrap(), ctx, msg).await
+}
 
+async fn get_user_name(ctx: &Context, msg: &Message) -> String {
+    match msg.guild_id {
+        Some(guild_id) => msg
+            .author
+            .nick_in(&ctx.http, guild_id)
+            .await
+            .unwrap_or_else(|| msg.author.name.to_owned()),
+        None => msg.author.name.to_owned(),
+    }
+}
+
+async fn process_roll(
+    mut roller: caith::Roller,
+    ctx: &Context,
+    msg: &Message,
+) -> Result<(String, RollResult), String> {
+    match roller.roll() {
+        Ok(res) => {
+            let name = get_user_name(ctx, msg).await;
             {
                 // do not store comment for reroll
-                let input = match input.find('!') {
-                    Some(idx) => &input[..idx],
-                    None => input,
-                };
-                let mut reroll_table = REROLL_TABLE.lock().unwrap();
-                reroll_table.insert(msg.author.to_string(), input.trim().to_owned());
+                roller.trim_reason();
+                let mut data = ctx.data.write().await;
+                let reroll_table = data.get_mut::<RerollTable>().unwrap();
+                reroll_table.insert(msg.author.to_string(), roller);
             }
             Ok((name, res))
         }
-        Err(err) => match err {
-            caith::RollError::ParseError(_) => Err(format!("Error:\n```\n{}\n```", err)),
-            caith::RollError::ParamError(err) => Err(format!("Error: {}", err)),
-        },
+        Err(err) => Err(err_message(err)),
     }
 }
 
@@ -190,16 +217,16 @@ async fn process_roll(
 ///     f#  : Value under which it is count as failure
 ///
 ///     Reason:
-///     !   : Any text after `!` will be a comment"
+///     :   : Any text after `:` will be a comment"
 /// ```
 async fn roll(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    if args.len() == 0 {
+    if args.is_empty() {
         if let Err(e) = msg.channel_id.say(&ctx.http, get_roll_help_msg()).await {
             eprintln!("Error sending message: {:?}", e);
         }
     } else {
         let maybe_alias = args.single::<String>().unwrap();
-        let input = match alias::get_alias(msg, &maybe_alias) {
+        let input = match alias::get_alias(ctx, msg, &maybe_alias).await {
             Some(command) => format!("{} {}", command, args.rest()),
             None => {
                 args.restore();
@@ -209,7 +236,7 @@ async fn roll(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
         let msg_to_send = if input.starts_with("help") {
             get_roll_help_msg()
         } else {
-            match process_roll(&input, ctx, msg).await {
+            match process_roll_str(&input, ctx, msg).await {
                 Ok((name, res)) => format!("{} roll: {}", name, res),
                 Err(msg) => msg,
             }
@@ -231,12 +258,13 @@ async fn reroll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let msg_to_send = if input.starts_with("help") {
         get_roll_help_msg()
     } else {
-        let input = {
-            let reroll_table = REROLL_TABLE.lock().unwrap();
-            reroll_table.get(&msg.author.to_string()).cloned()
+        let mut data = ctx.data.write().await;
+        let roller = {
+            let reroll_table = data.get_mut::<RerollTable>().unwrap();
+            reroll_table.remove(&msg.author.to_string())
         };
-        match input {
-            Some(input) => match process_roll(&input, ctx, msg).await {
+        match roller {
+            Some(roller) => match process_roll(roller, ctx, msg).await {
                 Ok((name, res)) => format!("{} reroll `{}`: {}", name, input, res),
                 Err(msg) => msg,
             },
@@ -260,19 +288,27 @@ async fn reroll_dice(ctx: &Context, msg: &Message, args: Args) -> CommandResult 
     let msg_to_send = if input.starts_with("help") {
         get_roll_help_msg()
     } else {
-        let input = {
-            let reroll_table = REROLL_TABLE.lock().unwrap();
-            reroll_table.get(&msg.author.to_string()).cloned()
+        let mut data = ctx.data.write().await;
+        let roller = {
+            let reroll_table = data.get_mut::<RerollTable>().unwrap();
+            reroll_table.get(&msg.author.to_string())
         };
-        match input {
-            Some(input) => match caith::find_first_dice(&input) {
-                Ok(dice) => match process_roll(&dice, ctx, msg).await {
-                    Ok((name, res)) => format!("{} reroll `{}`: {}", name, dice, res),
-                    Err(msg) => msg,
+        let dice = match roller {
+            Some(roller) => match roller.dices() {
+                Ok(mut dices) => match dices.next() {
+                    Some(dice) => Ok(dice),
+                    _ => Err("No dice to reroll".to_string()),
                 },
+                Err(e) => Err(e.to_string()),
+            },
+            None => Err("No previous roll".to_string()),
+        };
+        match dice {
+            Ok(dice) => match process_roll_str(&dice, ctx, msg).await {
+                Ok((name, res)) => format!("{} reroll `{}`: {}", name, input, res),
                 Err(e) => e.to_string(),
             },
-            None => "No previous roll".to_owned(),
+            Err(err) => err,
         }
     };
 
@@ -368,7 +404,7 @@ async fn disallow_user_alias(ctx: &Context, msg: &Message, args: Args) -> Comman
 /// List defined aliases
 /// ```
 async fn list_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
-    let aliases = alias::list_aliases(msg);
+    let aliases = alias::list_aliases(ctx, msg).await;
     let msg_to_send = if !aliases.is_empty() {
         aliases
             .iter()
@@ -394,22 +430,19 @@ async fn list_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
 /// List authorized users
 /// ```
 async fn list_users(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
-    let users = alias::list_allowed_users(msg);
+    let users = alias::list_allowed_users(ctx, msg).await;
     let msg_to_send = if !users.is_empty() {
         let mut list = "Allowed users:\n".to_string();
         for user_str in &users {
             let user_id: UserId = UserId::from_str(user_str.as_str()).unwrap();
-            match user_id.to_user(&ctx.http).await {
-                Ok(user) => {
-                    let name = user
-                        .nick_in(&ctx.http, msg.guild_id.unwrap())
-                        .await
-                        .unwrap_or_else(|| user.name.to_owned());
-                    list.push_str("- ");
-                    list.push_str(&name);
-                    list.push('\n');
-                }
-                Err(_) => (),
+            if let Ok(user) = user_id.to_user(&ctx.http).await {
+                let name = user
+                    .nick_in(&ctx.http, msg.guild_id.unwrap())
+                    .await
+                    .unwrap_or_else(|| user.name.to_owned());
+                list.push_str("- ");
+                list.push_str(&name);
+                list.push('\n');
             }
         }
         list
@@ -432,7 +465,9 @@ async fn list_users(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
 async fn save_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
     // Permission check done here because save_alias_data is called on shutdown as well
     let msg_to_send = if alias::is_super_user(ctx, msg).await {
-        match alias::save_alias_data(alias::guild_id(msg)) {
+        let mut data = ctx.data.write().await;
+        let all_data = data.get_mut::<crate::Aliases>().unwrap();
+        match alias::save_alias_data(all_data, alias::guild_id(msg)) {
             Ok(_) => "Configuration saved".to_owned(),
             Err(e) => format!("Error on saving: {}", e),
         }
@@ -455,7 +490,7 @@ async fn save_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
 async fn load_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
     // Permission check done here because load_alias_data is called on startup as well
     let msg_to_send = if alias::is_super_user(ctx, msg).await {
-        match alias::load_alias_data(alias::guild_id(msg)) {
+        match alias::load_alias_data(ctx, alias::guild_id(msg)).await {
             Ok(_) => "Configuration loaded".to_owned(),
             Err(e) => format!("Error on loading: {}", e),
         }
@@ -535,6 +570,16 @@ async fn main() {
         .await
         .expect("Err creating client");
 
+    {
+        let mut data = client.data.write().await;
+        data.insert::<InitDMTable>(HashSet::new());
+        data.insert::<RerollTable>(HashMap::new());
+        data.insert::<Aliases>(HashMap::new());
+    }
+
+    // save for exit bot saving
+    let data = client.data.clone();
+
     let handle_client = async {
         if let Err(why) = client.start().await {
             eprintln!("Client error: {:?}", why);
@@ -547,7 +592,9 @@ async fn main() {
             .await
             .expect("Failed to listen for event");
         println!("Exiting…");
-        alias::save_all();
+        let data = data.read().await;
+        let all_data = data.get::<Aliases>().unwrap();
+        alias::save_all(&all_data);
     };
 
     #[cfg(unix)]
@@ -555,7 +602,9 @@ async fn main() {
         let mut stream = signal(SignalKind::terminate()).expect("Error on getting sigterm stream");
         stream.recv().await;
         println!("Stoping…");
-        alias::save_all();
+        let mut data = data.read().await;
+        let all_data = data.get::<Aliases>().unwrap();
+        alias::save_all(&all_data);
     };
 
     let all_fut = vec![

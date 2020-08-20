@@ -1,3 +1,9 @@
+# 0.5.0
+- Update to `caith` 1.0 with breaking change for the bot: 
+  - reason is now `1d6 : reason` instead of `1d6 ! reason`
+  - `!` is an alias for `ie`, ex: `1d6!6` it equivalent to `1d6ie6`
+  - number is optional for exploding dice: `1d6!` == `1d6!6`, `1d20!` == `1d20!20`
+
 # 0.4.5
 - No need for Admin permission for the owner anymore
 - Permission check on clear users/aliases

@@ -2,10 +2,8 @@ use std::{
     collections::{HashMap, HashSet},
     iter::FromIterator,
     path::PathBuf,
-    sync::Mutex,
 };
 
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use crate::send_message;
@@ -18,10 +16,8 @@ use serenity::{
 
 const DIR_NAME: &str = ".disle";
 
-static DATA_TABLE: Lazy<Mutex<HashMap<u64, Data>>> = Lazy::new(|| Mutex::new(HashMap::new()));
-
 #[derive(Serialize, Deserialize)]
-struct Data {
+pub(crate) struct Data {
     aliases: HashMap<String, String>,
     users: HashSet<String>,
 }
@@ -67,8 +63,7 @@ async fn is_admin(ctx: &Context, msg: &Message) -> bool {
     }
 }
 
-fn is_allowed(guild_id: u64, user: &str) -> bool {
-    let all_data = DATA_TABLE.lock().unwrap();
+fn is_allowed(all_data: &mut HashMap<u64, Data>, guild_id: u64, user: &str) -> bool {
     match all_data.get(&guild_id) {
         Some(data) => data.users.contains(user),
         None => false,
@@ -84,47 +79,53 @@ pub(crate) fn guild_id(msg: &Message) -> u64 {
 
 pub(crate) async fn set_alias(ctx: &Context, msg: &Message, mut args: Args) {
     let guild_id = guild_id(msg);
-    let msg_to_send =
-        if is_allowed(guild_id, &msg.author.to_string()) || is_super_user(ctx, msg).await {
-            let alias = args.single::<String>().unwrap();
-            let command = args.rest().to_string();
-            let mut all_data = DATA_TABLE.lock().unwrap();
-            let data = all_data.entry(guild_id).or_insert(Data::new());
-            let msg = format!("Alias `{}` set", alias);
-            data.aliases.insert(alias, command);
-            msg
-        } else {
-            "You are not allowed to set aliases".to_owned()
-        };
+    let mut data = ctx.data.write().await;
+    let all_data = data.get_mut::<crate::Aliases>().unwrap();
+    let msg_to_send = if is_allowed(all_data, guild_id, &msg.author.to_string())
+        || is_super_user(ctx, msg).await
+    {
+        let alias = args.single::<String>().unwrap();
+        let command = args.rest().to_string();
+        let data = all_data.entry(guild_id).or_insert_with(Data::new);
+        let msg = format!("Alias `{}` set", alias);
+        data.aliases.insert(alias, command);
+        msg
+    } else {
+        "You are not allowed to set aliases".to_owned()
+    };
     send_message(ctx, msg.channel_id, &msg_to_send).await;
 }
 
 pub(crate) async fn del_alias(ctx: &Context, msg: &Message, alias: &str) {
     let guild_id = guild_id(msg);
-    let msg_to_send =
-        if is_allowed(guild_id, &msg.author.to_string()) || is_super_user(ctx, msg).await {
-            let mut all_data = DATA_TABLE.lock().unwrap();
-            let data = all_data.entry(guild_id).or_insert(Data::new());
-            data.aliases.remove(alias);
-            format!("Alias `{}` deleted", alias)
-        } else {
-            "Only admin can delete aliases".to_owned()
-        };
+    let mut data = ctx.data.write().await;
+    let all_data = data.get_mut::<crate::Aliases>().unwrap();
+    let msg_to_send = if is_allowed(all_data, guild_id, &msg.author.to_string())
+        || is_super_user(ctx, msg).await
+    {
+        let data = all_data.entry(guild_id).or_insert_with(Data::new);
+        data.aliases.remove(alias);
+        format!("Alias `{}` deleted", alias)
+    } else {
+        "Only admin can delete aliases".to_owned()
+    };
     send_message(ctx, msg.channel_id, &msg_to_send).await;
 }
 
-pub(crate) fn get_alias(msg: &Message, alias: &str) -> Option<String> {
+pub(crate) async fn get_alias(ctx: &Context, msg: &Message, alias: &str) -> Option<String> {
     let guild_id = guild_id(msg);
-    let all_data = DATA_TABLE.lock().unwrap();
+    let data = ctx.data.read().await;
+    let all_data = data.get::<crate::Aliases>().unwrap();
     match all_data.get(&guild_id) {
-        Some(data) => data.aliases.get(alias).map(|s| s.clone()),
+        Some(data) => data.aliases.get(alias).cloned(),
         None => None,
     }
 }
 
-pub(crate) fn list_aliases(msg: &Message) -> Vec<String> {
+pub(crate) async fn list_aliases(ctx: &Context, msg: &Message) -> Vec<String> {
     let guild_id = guild_id(msg);
-    let all_data = DATA_TABLE.lock().unwrap();
+    let data = ctx.data.read().await;
+    let all_data = data.get::<crate::Aliases>().unwrap();
     match all_data.get(&guild_id) {
         Some(data) => data
             .aliases
@@ -138,8 +139,9 @@ pub(crate) fn list_aliases(msg: &Message) -> Vec<String> {
 pub(crate) async fn allow_user(ctx: &Context, msg: &Message, user: &str) {
     let guild_id = guild_id(msg);
     let msg_to_send = if is_super_user(ctx, msg).await {
-        let mut all_data = DATA_TABLE.lock().unwrap();
-        let data = all_data.entry(guild_id).or_insert(Data::new());
+        let mut data = ctx.data.write().await;
+        let all_data = data.get_mut::<crate::Aliases>().unwrap();
+        let data = all_data.entry(guild_id).or_insert_with(Data::new);
         data.users.insert(user.to_string());
         format!("{} has been allowed to manipulate alias", user)
     } else {
@@ -151,8 +153,9 @@ pub(crate) async fn allow_user(ctx: &Context, msg: &Message, user: &str) {
 pub(crate) async fn disallow_user(ctx: &Context, msg: &Message, user: &str) {
     let guild_id = guild_id(msg);
     let msg_to_send = if is_super_user(ctx, msg).await {
-        let mut all_data = DATA_TABLE.lock().unwrap();
-        let data = all_data.entry(guild_id).or_insert(Data::new());
+        let mut data = ctx.data.write().await;
+        let all_data = data.get_mut::<crate::Aliases>().unwrap();
+        let data = all_data.entry(guild_id).or_insert_with(Data::new);
         data.users.remove(user);
         format!("{} has been disallowed to manipulate alias", user)
     } else {
@@ -161,14 +164,16 @@ pub(crate) async fn disallow_user(ctx: &Context, msg: &Message, user: &str) {
     send_message(ctx, msg.channel_id, &msg_to_send).await;
 }
 
-pub(crate) fn list_allowed_users(msg: &Message) -> Vec<String> {
+pub(crate) async fn list_allowed_users(ctx: &Context, msg: &Message) -> Vec<String> {
     let guild_id = guild_id(msg);
-    let all_data = DATA_TABLE.lock().unwrap();
+    let data = ctx.data.read().await;
+    let all_data = data.get::<crate::Aliases>().unwrap();
+
     match all_data.get(&guild_id) {
         Some(data) => {
             let mut list = Vec::from_iter(data.users.iter());
             list.sort_unstable();
-            list.iter().map(|s| format!("{}", s)).collect()
+            list.iter().map(|s| s.to_string()).collect()
         }
         None => vec![],
     }
@@ -177,7 +182,8 @@ pub(crate) fn list_allowed_users(msg: &Message) -> Vec<String> {
 pub(crate) async fn clear_users(ctx: &Context, msg: &Message) {
     let msg_to_send = if is_super_user(ctx, msg).await {
         let guild_id = guild_id(msg);
-        let mut all_data = DATA_TABLE.lock().unwrap();
+        let mut data = ctx.data.write().await;
+        let all_data = data.get_mut::<crate::Aliases>().unwrap();
         if let Some(data) = all_data.get_mut(&guild_id) {
             data.users.clear();
         }
@@ -192,7 +198,8 @@ pub(crate) async fn clear_users(ctx: &Context, msg: &Message) {
 pub(crate) async fn clear_aliases(ctx: &Context, msg: &Message) {
     let msg_to_send = if is_super_user(ctx, msg).await {
         let guild_id = guild_id(msg);
-        let mut all_data = DATA_TABLE.lock().unwrap();
+        let mut data = ctx.data.write().await;
+        let all_data = data.get_mut::<crate::Aliases>().unwrap();
         if let Some(data) = all_data.get_mut(&guild_id) {
             data.aliases.clear();
         }
@@ -208,9 +215,7 @@ pub(crate) async fn clear_aliases(ctx: &Context, msg: &Message) {
 // at startup/shutdown of the bot.
 //
 // The permissions are checked in the commands
-
-pub(crate) fn save_alias_data(guild_id: u64) -> std::io::Result<()> {
-    let all_data = DATA_TABLE.lock().unwrap();
+pub(crate) fn save_alias_data(all_data: &HashMap<u64, Data>, guild_id: u64) -> std::io::Result<()> {
     match all_data.get(&guild_id) {
         Some(data) => {
             let ser = ron::ser::to_string_pretty(&data, Default::default()).unwrap();
@@ -228,27 +233,25 @@ pub(crate) fn save_alias_data(guild_id: u64) -> std::io::Result<()> {
     }
 }
 
-pub(crate) fn save_all() {
-    let keys: Vec<_> = {
-        let all_data = DATA_TABLE.lock().unwrap();
-        all_data.keys().cloned().collect()
-    };
+pub(crate) fn save_all(alias_data: &HashMap<u64, Data>) {
+    let keys: Vec<_> = { alias_data.keys().cloned().collect() };
     for k in keys {
-        match save_alias_data(k) {
+        match save_alias_data(alias_data, k) {
             Ok(_) => {}
             Err(e) => eprintln!("{}", e),
         }
     }
 }
 
-pub(crate) fn load_alias_data(guild_id: u64) -> std::io::Result<()> {
+pub(crate) async fn load_alias_data(ctx: &Context, guild_id: u64) -> std::io::Result<()> {
     let mut path = PathBuf::from(DIR_NAME);
     if path.exists() {
         path.push(format!("{}.ron", guild_id));
         match std::fs::read_to_string(path) {
             Ok(content) => {
                 let data: Data = ron::de::from_str(&content).unwrap();
-                let mut all_data = DATA_TABLE.lock().unwrap();
+                let mut client_data = ctx.data.write().await;
+                let all_data = client_data.get_mut::<crate::Aliases>().unwrap();
                 all_data.insert(guild_id, data);
             }
             Err(e) => return Err(e),
