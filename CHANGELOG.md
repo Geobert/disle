@@ -1,3 +1,9 @@
+# 0.5.1
+- Fix deadlock on reroll
+- Refactor alias to not depends on Discord data
+  - permission check are done in the Discord command rather than in alias module because
+    of locking twice on Context.data, once to access AllData, second to access AllowList
+
 # 0.5.0
 - Update to `caith` 1.0 with breaking change for the bot: 
   - reason is now `1d6 : reason` instead of `1d6 ! reason`

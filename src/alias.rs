@@ -1,25 +1,18 @@
 use std::{
     collections::{HashMap, HashSet},
     iter::FromIterator,
+    ops::{Deref, DerefMut},
     path::PathBuf,
 };
 
 use serde::{Deserialize, Serialize};
 
-use crate::send_message;
-
-use serenity::{
-    client::Context,
-    framework::standard::Args,
-    model::{channel::Message, Permissions},
-};
-
 const DIR_NAME: &str = ".disle";
 
 #[derive(Serialize, Deserialize)]
-pub(crate) struct Data {
-    aliases: HashMap<String, String>,
-    users: HashSet<String>,
+pub struct Data {
+    pub aliases: HashMap<String, String>,
+    pub users: HashSet<String>,
 }
 
 impl Data {
@@ -31,231 +24,157 @@ impl Data {
     }
 }
 
-pub(crate) async fn is_super_user(ctx: &Context, msg: &Message) -> bool {
-    is_owner(ctx, msg).await || is_admin(ctx, msg).await
-}
+// room_id, Data
+pub struct AllData(HashMap<u64, Data>);
 
-async fn is_owner(ctx: &Context, msg: &Message) -> bool {
-    if let Some(guild_id) = msg.guild_id {
-        ctx.cache
-            .guild_field(guild_id, |guild| msg.author.id == guild.owner_id)
-            .await
-            .unwrap_or(false)
-    } else {
-        false
+impl AllData {
+    pub fn new() -> Self {
+        AllData(HashMap::new())
     }
 }
 
-async fn is_admin(ctx: &Context, msg: &Message) -> bool {
-    if let Some(member) = &msg.member {
-        for role in &member.roles {
-            if role
-                .to_role_cached(&ctx.cache)
-                .await
-                .map_or(false, |r| r.has_permission(Permissions::ADMINISTRATOR))
-            {
-                return true;
-            }
-        }
-        false
-    } else {
-        true // not in a chatroom = direct message, no role, allow all
+impl Deref for AllData {
+    type Target = HashMap<u64, Data>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
-fn is_allowed(all_data: &mut HashMap<u64, Data>, guild_id: u64, user: &str) -> bool {
-    match all_data.get(&guild_id) {
-        Some(data) => data.users.contains(user),
-        None => false,
+impl DerefMut for AllData {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
-pub(crate) fn guild_id(msg: &Message) -> u64 {
-    match msg.guild_id {
-        Some(guild_id) => *guild_id.as_u64(),
-        None => *msg.channel_id.as_u64(),
-    }
-}
-
-pub(crate) async fn set_alias(ctx: &Context, msg: &Message, mut args: Args) {
-    let guild_id = guild_id(msg);
-    let mut data = ctx.data.write().await;
-    let all_data = data.get_mut::<crate::Aliases>().unwrap();
-    let msg_to_send = if is_allowed(all_data, guild_id, &msg.author.to_string())
-        || is_super_user(ctx, msg).await
-    {
-        let alias = args.single::<String>().unwrap();
-        let command = args.rest().to_string();
-        let data = all_data.entry(guild_id).or_insert_with(Data::new);
+impl AllData {
+    pub(crate) async fn set_alias(
+        &mut self,
+        alias: String,
+        command: String,
+        chat_id: u64,
+    ) -> String {
+        let data = self.entry(chat_id).or_insert_with(Data::new);
         let msg = format!("Alias `{}` set", alias);
         data.aliases.insert(alias, command);
         msg
-    } else {
-        "You are not allowed to set aliases".to_owned()
-    };
-    send_message(ctx, msg.channel_id, &msg_to_send).await;
-}
+    }
 
-pub(crate) async fn del_alias(ctx: &Context, msg: &Message, alias: &str) {
-    let guild_id = guild_id(msg);
-    let mut data = ctx.data.write().await;
-    let all_data = data.get_mut::<crate::Aliases>().unwrap();
-    let msg_to_send = if is_allowed(all_data, guild_id, &msg.author.to_string())
-        || is_super_user(ctx, msg).await
-    {
-        let data = all_data.entry(guild_id).or_insert_with(Data::new);
+    pub(crate) async fn del_alias(&mut self, alias: &str, chat_id: u64) -> String {
+        let data = self.entry(chat_id).or_insert_with(Data::new);
         data.aliases.remove(alias);
         format!("Alias `{}` deleted", alias)
-    } else {
-        "Only admin can delete aliases".to_owned()
-    };
-    send_message(ctx, msg.channel_id, &msg_to_send).await;
-}
-
-pub(crate) async fn get_alias(ctx: &Context, msg: &Message, alias: &str) -> Option<String> {
-    let guild_id = guild_id(msg);
-    let data = ctx.data.read().await;
-    let all_data = data.get::<crate::Aliases>().unwrap();
-    match all_data.get(&guild_id) {
-        Some(data) => data.aliases.get(alias).cloned(),
-        None => None,
     }
-}
 
-pub(crate) async fn list_aliases(ctx: &Context, msg: &Message) -> Vec<String> {
-    let guild_id = guild_id(msg);
-    let data = ctx.data.read().await;
-    let all_data = data.get::<crate::Aliases>().unwrap();
-    match all_data.get(&guild_id) {
-        Some(data) => data
-            .aliases
-            .iter()
-            .map(|(k, v)| format!("`{}` = `{}`", k, v))
-            .collect(),
-        None => vec![],
+    pub(crate) async fn get_alias(&self, alias: &str, chat_id: u64) -> Option<String> {
+        // TODO: check for + - / *
+        match self.get(&chat_id) {
+            Some(data) => data.aliases.get(alias).cloned(),
+            None => None,
+        }
     }
-}
 
-pub(crate) async fn allow_user(ctx: &Context, msg: &Message, user: &str) {
-    let guild_id = guild_id(msg);
-    let msg_to_send = if is_super_user(ctx, msg).await {
-        let mut data = ctx.data.write().await;
-        let all_data = data.get_mut::<crate::Aliases>().unwrap();
-        let data = all_data.entry(guild_id).or_insert_with(Data::new);
+    pub(crate) async fn list_alias(&self, chat_id: u64) -> Vec<String> {
+        match self.get(&chat_id) {
+            Some(data) => data
+                .aliases
+                .iter()
+                .map(|(k, v)| format!("`{}` = `{}`", k, v))
+                .collect(),
+            None => vec![],
+        }
+    }
+
+    pub(crate) async fn allow_user(&mut self, user: &str, chat_id: u64) -> String {
+        let data = self.entry(chat_id).or_insert_with(Data::new);
         data.users.insert(user.to_string());
         format!("{} has been allowed to manipulate alias", user)
-    } else {
-        "Only administrator or server's owner can allow a user to alias commands".to_owned()
-    };
-    send_message(ctx, msg.channel_id, &msg_to_send).await;
-}
+    }
 
-pub(crate) async fn disallow_user(ctx: &Context, msg: &Message, user: &str) {
-    let guild_id = guild_id(msg);
-    let msg_to_send = if is_super_user(ctx, msg).await {
-        let mut data = ctx.data.write().await;
-        let all_data = data.get_mut::<crate::Aliases>().unwrap();
-        let data = all_data.entry(guild_id).or_insert_with(Data::new);
+    pub(crate) async fn disallow_user(&mut self, user: &str, chat_id: u64) -> String {
+        let data = self.entry(chat_id).or_insert_with(Data::new);
         data.users.remove(user);
         format!("{} has been disallowed to manipulate alias", user)
-    } else {
-        "Only administrator or server's owner disallow a user to alias commands".to_owned()
-    };
-    send_message(ctx, msg.channel_id, &msg_to_send).await;
-}
-
-pub(crate) async fn list_allowed_users(ctx: &Context, msg: &Message) -> Vec<String> {
-    let guild_id = guild_id(msg);
-    let data = ctx.data.read().await;
-    let all_data = data.get::<crate::Aliases>().unwrap();
-
-    match all_data.get(&guild_id) {
-        Some(data) => {
-            let mut list = Vec::from_iter(data.users.iter());
-            list.sort_unstable();
-            list.iter().map(|s| s.to_string()).collect()
-        }
-        None => vec![],
     }
-}
 
-pub(crate) async fn clear_users(ctx: &Context, msg: &Message) {
-    let msg_to_send = if is_super_user(ctx, msg).await {
-        let guild_id = guild_id(msg);
-        let mut data = ctx.data.write().await;
-        let all_data = data.get_mut::<crate::Aliases>().unwrap();
-        if let Some(data) = all_data.get_mut(&guild_id) {
+    pub(crate) async fn list_allowed_users(&self, chat_id: u64) -> Vec<String> {
+        match self.get(&chat_id) {
+            Some(data) => {
+                let mut list = Vec::from_iter(data.users.iter());
+                list.sort_unstable();
+                list.iter().map(|s| s.to_string()).collect()
+            }
+            None => vec![],
+        }
+    }
+
+    pub(crate) async fn clear_users(&mut self, chat_id: u64) -> &'static str {
+        if let Some(data) = self.get_mut(&chat_id) {
             data.users.clear();
         }
         "Users cleared. You can still undo this with a `load` until a `save` or a bot reboot."
-    } else {
-        "Only administrator or owner can clear allowed users list"
-    };
+    }
 
-    send_message(ctx, msg.channel_id, msg_to_send).await;
-}
-
-pub(crate) async fn clear_aliases(ctx: &Context, msg: &Message) {
-    let msg_to_send = if is_super_user(ctx, msg).await {
-        let guild_id = guild_id(msg);
-        let mut data = ctx.data.write().await;
-        let all_data = data.get_mut::<crate::Aliases>().unwrap();
-        if let Some(data) = all_data.get_mut(&guild_id) {
+    pub(crate) async fn clear_aliases(&mut self, chat_id: u64) -> &'static str {
+        if let Some(data) = self.get_mut(&chat_id) {
             data.aliases.clear();
         }
         "Aliases cleared. You can still undo this with a `load` until a `save` or a bot reboot."
-    } else {
-        "Only administrator or owner can clear aliases"
-    };
+    }
 
-    send_message(ctx, msg.channel_id, msg_to_send).await;
-}
+    pub(crate) async fn save_alias_data(&self, chat_id: u64) -> std::io::Result<&'static str> {
+        let msg = match self.get(&chat_id) {
+            Some(data) => {
+                let ser = ron::ser::to_string_pretty(&data, Default::default()).unwrap();
+                let mut path = PathBuf::from(DIR_NAME);
+                if !path.exists() {
+                    match std::fs::create_dir(DIR_NAME) {
+                        Ok(_) => (),
+                        Err(e) => eprintln!("{}", e),
+                    }
+                }
+                path.push(format!("{}.ron", chat_id));
+                std::fs::write(path, ser.as_bytes())?;
+                "Configuration saved"
+            }
+            None => "Nothing to save",
+        };
 
-// save and load are not protected by permission here because they can be called without a command
-// at startup/shutdown of the bot.
-//
-// The permissions are checked in the commands
-pub(crate) fn save_alias_data(all_data: &HashMap<u64, Data>, guild_id: u64) -> std::io::Result<()> {
-    match all_data.get(&guild_id) {
-        Some(data) => {
-            let ser = ron::ser::to_string_pretty(&data, Default::default()).unwrap();
-            let mut path = PathBuf::from(DIR_NAME);
-            if !path.exists() {
-                match std::fs::create_dir(DIR_NAME) {
-                    Ok(_) => (),
-                    Err(e) => eprintln!("{}", e),
+        Ok(msg)
+    }
+
+    pub(crate) async fn load_alias_data(&mut self, chat_id: u64) -> std::io::Result<&'static str> {
+        let mut path = PathBuf::from(DIR_NAME);
+        if path.exists() {
+            path.push(format!("{}.ron", chat_id));
+            match std::fs::read_to_string(path) {
+                Ok(content) => {
+                    let data: Data = ron::de::from_str(&content).unwrap();
+                    self.insert(chat_id, data);
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        Ok("Configuration loaded")
+    }
+
+    pub(crate) fn save_all(&self) {
+        let keys: Vec<_> = { self.keys().cloned().collect() };
+        for chat_id in keys {
+            if let Some(data) = self.get(&chat_id) {
+                let ser = ron::ser::to_string_pretty(&data, Default::default()).unwrap();
+                let mut path = PathBuf::from(DIR_NAME);
+                if !path.exists() {
+                    match std::fs::create_dir(DIR_NAME) {
+                        Ok(_) => (),
+                        Err(e) => eprintln!("{}", e),
+                    }
+                }
+                path.push(format!("{}.ron", chat_id));
+                if let Err(e) = std::fs::write(path, ser.as_bytes()) {
+                    eprintln!("{}", e.to_string());
                 }
             }
-            path.push(format!("{}.ron", guild_id));
-            std::fs::write(path, ser.as_bytes())
-        }
-        None => Ok(()),
-    }
-}
-
-pub(crate) fn save_all(alias_data: &HashMap<u64, Data>) {
-    let keys: Vec<_> = { alias_data.keys().cloned().collect() };
-    for k in keys {
-        match save_alias_data(alias_data, k) {
-            Ok(_) => {}
-            Err(e) => eprintln!("{}", e),
         }
     }
-}
-
-pub(crate) async fn load_alias_data(ctx: &Context, guild_id: u64) -> std::io::Result<()> {
-    let mut path = PathBuf::from(DIR_NAME);
-    if path.exists() {
-        path.push(format!("{}.ron", guild_id));
-        match std::fs::read_to_string(path) {
-            Ok(content) => {
-                let data: Data = ron::de::from_str(&content).unwrap();
-                let mut client_data = ctx.data.write().await;
-                let all_data = client_data.get_mut::<crate::Aliases>().unwrap();
-                all_data.insert(guild_id, data);
-            }
-            Err(e) => return Err(e),
-        }
-    }
-    Ok(())
 }

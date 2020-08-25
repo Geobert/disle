@@ -1,6 +1,6 @@
 [package]
 name = "disle"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["Geobert Quach <geobert@protonmail.com>"]
 edition = "2018"
 
