@@ -253,7 +253,6 @@ async fn process_roll(
 }
 
 #[command]
-#[delimiters(" ", "+", "-", "/", "*")]
 #[aliases("r")]
 /// ```
 /// /roll xdy [OPTIONS][TARGET][FAILURE][REASON]
