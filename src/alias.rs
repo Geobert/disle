@@ -67,9 +67,23 @@ impl AllData {
     }
 
     pub(crate) async fn get_alias(&self, alias: &str, chat_id: u64) -> Option<String> {
-        // TODO: check for + - / *
+        let (alias, rest) =
+            if let Some(idx) = alias.find(|c| c == '+' || c == '-' || c == '*' || c == '/') {
+                (&alias[..idx], Some(&alias[idx..]))
+            } else {
+                (alias, None)
+            };
         match self.get(&chat_id) {
-            Some(data) => data.aliases.get(alias).cloned(),
+            Some(data) => match data.aliases.get(alias) {
+                Some(alias) => {
+                    if let Some(rest) = rest {
+                        Some(format!("{} {}", alias, rest))
+                    } else {
+                        Some(alias.clone())
+                    }
+                }
+                None => None,
+            },
             None => None,
         }
     }
