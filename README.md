@@ -29,7 +29,7 @@ rolls x dices of y sides
 Options:
 + - / * : modifiers
 e#  : Explode value
-ie# : Indefinite explode value
+ie# or !# : Indefinite explode value
 K#  : Keeping # highest (upperacse "K")
 k#  : Keeping # lowest (lowercase "k")
 D#  : Dropping the highest (uppercase "D")
@@ -44,7 +44,7 @@ Failure:
 f#  : Value under which it is count as failuer
 
 Reason:
-!   : Any text after `!` will be a comment
+:  : Any text after `:` will be a comment
 ```
 
 See the underlying crate `caith`'s [Readme for the full syntax](https://github.com/Geobert/caith/blob/master/README.md)
