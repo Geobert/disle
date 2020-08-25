@@ -194,7 +194,7 @@ dependencies = [
 
 [[package]]
 name = "disle"
-version = "0.5.1"
+version = "0.5.3"
 dependencies = [
  "caith",
  "futures",
