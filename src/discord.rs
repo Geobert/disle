@@ -1,7 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
     env,
-    str::FromStr,
 };
 
 use caith::RollResult;
@@ -71,7 +70,7 @@ async fn is_allowed(ctx: &Context, msg: &Message) -> bool {
     let data = ctx.data.read().await;
     let all_data = data.get::<Aliases>().unwrap();
     match all_data.get(&chat_id(msg)) {
-        Some(data) => data.users.contains(&msg.author.to_string()),
+        Some(data) => data.allowed.contains(msg.author.id.as_u64()),
         None => false,
     }
 }
@@ -116,7 +115,7 @@ impl EventHandler for Handler {
             if guild_id != GuildId(0) {
                 let mut data = ctx.data.write().await;
                 let all_data = data.get_mut::<Aliases>().unwrap();
-                if let Err(e) = all_data.load_alias_data(*guild_id.as_u64()).await {
+                if let Err(e) = all_data.load_alias_data(*guild_id.as_u64()) {
                     eprintln!("{}", e);
                 }
             }
@@ -134,7 +133,7 @@ impl EventHandler for Handler {
             let res = {
                 let mut data = ctx.data.write().await;
                 let all_data = data.get_mut::<Aliases>().unwrap();
-                all_data.load_alias_data(*channel.id.as_u64()).await
+                all_data.load_alias_data(*channel.id.as_u64())
             };
             if let Err(e) = res {
                 eprintln!("{}", e);
@@ -156,14 +155,17 @@ struct Roll;
 #[description = "Alias management commands"]
 #[commands(
     list_alias,
-    set_alias,
-    del_alias,
+    set_global_alias,
+    del_global_alias,
+    set_user_alias,
+    del_user_alias,
+    clear_user_alias,
     list_users,
     allow_user_alias,
     disallow_user_alias,
     save_alias,
     load_alias,
-    clear_aliases,
+    clear_global_aliases,
     clear_users
 )]
 struct Alias;
@@ -292,12 +294,13 @@ async fn roll(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
         let input = {
             let data = ctx.data.read().await;
             let all_data = data.get::<Aliases>().unwrap();
-            match all_data.get_alias(&maybe_alias, chat_id(msg)).await {
-                Some(command) => format!("{} {}", command, args.rest()),
-                None => {
+            match all_data.get_alias(&maybe_alias, chat_id(msg), *msg.author.id.as_u64()) {
+                Ok(Some(command)) => format!("{} {}", command, args.rest()),
+                Ok(None) => {
                     args.restore();
                     args.rest().to_owned()
                 }
+                Err(err) => err,
             }
         };
 
@@ -394,25 +397,25 @@ async fn reroll_dice(ctx: &Context, msg: &Message, args: Args) -> CommandResult 
 //
 
 #[command]
-#[aliases("set")]
+#[aliases("sg", "setg")]
 #[min_args(2)]
 /// ```
-/// /alias set alias_name roll_command
+/// /alias sg alias_name roll_command
 ///
 /// Create or replace an alias with roll_command.
 /// The alias will be callable in a /roll command.
 ///
 /// Command only available to role with Administrator permission.
 /// ```
-async fn set_alias(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+async fn set_global_alias(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let msg_to_send = if is_allowed(ctx, msg).await || is_super_user(ctx, msg).await {
         let alias = args.single::<String>().unwrap();
         let command = args.rest().to_string();
         let mut data = ctx.data.write().await;
         let all_data = data.get_mut::<Aliases>().unwrap();
-        all_data.set_alias(alias, command, chat_id(msg)).await
+        all_data.set_global_alias(alias, command, chat_id(msg))
     } else {
-        "You are not allowed to set aliases".to_owned()
+        "You are not allowed to set global aliases".to_owned()
     };
 
     send_message(ctx, msg.channel_id, &msg_to_send).await;
@@ -420,22 +423,83 @@ async fn set_alias(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
 }
 
 #[command]
-#[aliases("del")]
+#[aliases("dg", "delg")]
 #[min_args(1)]
 /// ```
-/// /alias del alias_name
+/// /alias dg alias_name
 ///
 /// Remove an alias
 /// ```
-async fn del_alias(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+async fn del_global_alias(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let msg_to_send = if is_allowed(ctx, msg).await || is_super_user(ctx, msg).await {
         let mut data = ctx.data.write().await;
         let all_data = data.get_mut::<Aliases>().unwrap();
-        all_data.del_alias(args.rest(), chat_id(msg)).await
+        all_data.del_global_alias(args.rest(), chat_id(msg))
     } else {
-        "Only allowed users can delete aliases".to_owned()
+        "Only allowed users can delete global aliases".to_owned()
     };
 
+    send_message(ctx, msg.channel_id, &msg_to_send).await;
+    Ok(())
+}
+
+#[command]
+#[aliases("su", "set")]
+#[min_args(2)]
+/// ```
+/// /alias set alias_name
+///
+/// Remove an alias
+/// ```
+async fn set_user_alias(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+    let msg_to_send = {
+        let alias = args.single::<String>().unwrap();
+        let command = args.rest().to_string();
+        let mut data = ctx.data.write().await;
+        let all_data = data.get_mut::<Aliases>().unwrap();
+        all_data.set_user_alias(
+            alias,
+            command,
+            chat_id(msg),
+            *msg.author.id.as_u64(),
+            &get_user_name(ctx, msg).await,
+        )
+    };
+    send_message(ctx, msg.channel_id, &msg_to_send).await;
+    Ok(())
+}
+
+#[command]
+#[aliases("du", "del")]
+#[min_args(1)]
+/// ```
+/// /alias set alias_name
+///
+/// Remove an alias
+/// ```
+async fn del_user_alias(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+    let msg_to_send = {
+        let alias = args.single::<String>().unwrap();
+        let mut data = ctx.data.write().await;
+        let all_data = data.get_mut::<Aliases>().unwrap();
+        all_data.del_user_alias(&alias, chat_id(msg), *msg.author.id.as_u64())
+    };
+    send_message(ctx, msg.channel_id, &msg_to_send).await;
+    Ok(())
+}
+
+#[command]
+/// ```
+/// /alias clear_user_alias
+///
+/// Remove all calling user's aliases
+/// ```
+async fn clear_user_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
+    let msg_to_send = {
+        let mut data = ctx.data.write().await;
+        let all_data = data.get_mut::<Aliases>().unwrap();
+        all_data.clear_user_aliases(chat_id(msg), *msg.author.id.as_u64())
+    };
     send_message(ctx, msg.channel_id, &msg_to_send).await;
     Ok(())
 }
@@ -444,25 +508,43 @@ async fn del_alias(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 #[aliases("allow", "au")]
 #[min_args(1)]
 /// ```
-/// /alias allow alias_name
+/// /alias allow user mention(s)
 ///
-/// Remove an alias
+/// Allow the mentioned users to modify global aliases
 /// ```
-async fn allow_user_alias(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+async fn allow_user_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
     if is_super_user(ctx, msg).await {
-        let user = args.rest();
-        if user.starts_with("<@") {
-            let msg_to_send = {
-                let mut data = ctx.data.write().await;
-                let all_data = data.get_mut::<Aliases>().unwrap();
-                all_data.allow_user(user, chat_id(msg)).await
-            };
-            send_message(ctx, msg.channel_id, &msg_to_send).await;
-        } else {
+        if msg.mentions.is_empty() {
             send_message(
                 ctx,
                 msg.channel_id,
                 "User to add must be mentioned (with `@`)",
+            )
+            .await;
+        } else {
+            let mut users = String::new();
+            for user in msg.mentions.iter() {
+                let mut data = ctx.data.write().await;
+                let all_data = data.get_mut::<Aliases>().unwrap();
+                all_data.allow_user(*user.id.as_u64(), chat_id(msg));
+                let name = user
+                    .nick_in(&ctx.http, msg.guild_id.unwrap())
+                    .await
+                    .unwrap_or_else(|| user.name.to_owned());
+                users = format!("{}, {}", users, name);
+            }
+            send_message(
+                ctx,
+                msg.channel_id,
+                &format!(
+                    "{} {} been allowed to manage global aliases",
+                    users,
+                    if msg.mentions.len() > 1 {
+                        "have"
+                    } else {
+                        "has"
+                    }
+                ),
             )
             .await;
         }
@@ -470,7 +552,7 @@ async fn allow_user_alias(ctx: &Context, msg: &Message, args: Args) -> CommandRe
         send_message(
             ctx,
             msg.channel_id,
-            "Only administrator or server's owner can allow a user to alias commands",
+            "Only administrator or server's owner can allow a user to manage global aliases",
         )
         .await;
     }
@@ -482,25 +564,43 @@ async fn allow_user_alias(ctx: &Context, msg: &Message, args: Args) -> CommandRe
 #[aliases("disallow", "du")]
 #[min_args(1)]
 /// ```
-/// /alias disallow alias_name
+/// /alias disallow user mentions
 ///
-/// Remove an alias
+/// Forbid mentioned users to manage global aliases
 /// ```
-async fn disallow_user_alias(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+async fn disallow_user_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
     if is_super_user(ctx, msg).await {
-        let user = args.rest();
-        if user.starts_with("<@") {
-            let msg_to_send = {
-                let mut data = ctx.data.write().await;
-                let all_data = data.get_mut::<Aliases>().unwrap();
-                all_data.disallow_user(user, chat_id(msg)).await
-            };
-            send_message(ctx, msg.channel_id, &msg_to_send).await;
-        } else {
+        if msg.mentions.is_empty() {
             send_message(
                 ctx,
                 msg.channel_id,
-                "User to add must be mentionne (with `@`)",
+                "User to remove must be mentionne (with `@`)",
+            )
+            .await;
+        } else {
+            let mut users = String::new();
+            for user in msg.mentions.iter() {
+                let mut data = ctx.data.write().await;
+                let all_data = data.get_mut::<Aliases>().unwrap();
+                all_data.disallow_user(*user.id.as_u64(), chat_id(msg));
+                let name = user
+                    .nick_in(&ctx.http, msg.guild_id.unwrap())
+                    .await
+                    .unwrap_or_else(|| user.name.to_owned());
+                users = format!("{}, {}", users, name);
+            }
+            send_message(
+                ctx,
+                msg.channel_id,
+                &format!(
+                    "{} {} been forbidden to manage global aliases",
+                    users,
+                    if msg.mentions.len() > 1 {
+                        "have"
+                    } else {
+                        "has"
+                    }
+                ),
             )
             .await;
         }
@@ -508,7 +608,7 @@ async fn disallow_user_alias(ctx: &Context, msg: &Message, args: Args) -> Comman
         send_message(
             ctx,
             msg.channel_id,
-            "Only administrator or server's owner disallow a user to alias commands",
+            "Only administrator or server's owner can disallow a user to manage global aliases",
         )
         .await;
     }
@@ -527,18 +627,27 @@ async fn list_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
     let msg_to_send = {
         let data = ctx.data.read().await;
         let all_data = data.get::<Aliases>().unwrap();
-        let aliases = all_data.list_alias(chat_id(msg)).await;
-        if !aliases.is_empty() {
-            aliases
-                .iter()
-                .fold("Existing aliases:\n".to_string(), |mut acc, s| {
-                    acc.push_str(&s);
-                    acc.push('\n');
-                    acc
-                })
+        let (user_aliases, global_aliases) =
+            all_data.list_alias(chat_id(msg), *msg.author.id.as_u64());
+        let fmt_aliases = |list: Vec<String>, title: String| {
+            list.iter().fold(title.to_string(), |mut acc, s| {
+                acc.push_str(&s);
+                acc.push('\n');
+                acc
+            })
+        };
+        let name = get_user_name(ctx, msg).await;
+        let user_aliases = if !user_aliases.is_empty() {
+            fmt_aliases(user_aliases, format!("{}'s aliases:\n", name))
         } else {
-            "No alias defined".to_owned()
-        }
+            format!("{} has no aliases set", name)
+        };
+        let global_aliases = if !global_aliases.is_empty() {
+            fmt_aliases(global_aliases, "Global aliases:\n".to_string())
+        } else {
+            "No global aliases defined".to_owned()
+        };
+        format!("{}\n{}", user_aliases, global_aliases)
     };
 
     send_message(ctx, msg.channel_id, &msg_to_send).await;
@@ -554,31 +663,28 @@ async fn list_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
 /// List authorized users
 /// ```
 async fn list_users(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
-    let msg_to_send = {
-        let data = ctx.data.read().await;
-        let all_data = data.get::<Aliases>().unwrap();
-        let users = all_data.list_allowed_users(chat_id(msg)).await;
-        if !users.is_empty() {
-            let mut list = "Allowed users:\n".to_string();
-            for user_str in &users {
-                let user_id: UserId = UserId::from_str(user_str.as_str()).unwrap();
-                if let Ok(user) = user_id.to_user(&ctx.http).await {
-                    let name = user
-                        .nick_in(&ctx.http, msg.guild_id.unwrap())
-                        .await
-                        .unwrap_or_else(|| user.name.to_owned());
-                    list.push_str("- ");
-                    list.push_str(&name);
-                    list.push('\n');
-                }
+    let data = ctx.data.read().await;
+    let all_data = data.get::<Aliases>().unwrap();
+    let users = all_data.list_allowed_users(chat_id(msg));
+    if !users.is_empty() {
+        let mut list = "Allowed users:\n".to_string();
+        for user_id in users {
+            let user_id = UserId(user_id);
+            if let Ok(user) = user_id.to_user(&ctx.http).await {
+                let name = user
+                    .nick_in(&ctx.http, msg.guild_id.unwrap())
+                    .await
+                    .unwrap_or_else(|| user.name.to_owned());
+                list.push_str("- ");
+                list.push_str(&name);
+                list.push('\n');
             }
-            list
-        } else {
-            "No allowed user".to_owned()
         }
-    };
+        send_message(ctx, msg.channel_id, &list).await;
+    } else {
+        send_message(ctx, msg.channel_id, "No allowed user").await;
+    }
 
-    send_message(ctx, msg.channel_id, &msg_to_send).await;
     Ok(())
 }
 
@@ -594,7 +700,7 @@ async fn save_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
     let msg_to_send = if is_allowed(ctx, msg).await || is_super_user(ctx, msg).await {
         let data = ctx.data.read().await;
         let all_data = data.get::<Aliases>().unwrap();
-        all_data.save_alias_data(chat_id(msg)).await?
+        all_data.save_alias_data(chat_id(msg))?
     } else {
         "Only allowed users can save the configuration"
     };
@@ -615,7 +721,7 @@ async fn load_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
         let mut data = ctx.data.write().await;
         let all_data = data.get_mut::<Aliases>().unwrap();
 
-        all_data.load_alias_data(chat_id(msg)).await?
+        all_data.load_alias_data(chat_id(msg))?
     } else {
         "Only allowed users can load the configuration"
     };
@@ -631,11 +737,11 @@ async fn load_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
 ///
 /// Delete all aliases. You can still undo this with a `load` until a `save` or a bot reboot.
 /// ```
-async fn clear_aliases(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
+async fn clear_global_aliases(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
     let msg_to_send = if is_super_user(ctx, msg).await {
         let mut data = ctx.data.write().await;
         let all_data = data.get_mut::<Aliases>().unwrap();
-        all_data.clear_aliases(chat_id(msg)).await
+        all_data.clear_aliases(chat_id(msg))
     } else {
         "Only admin users can clear all the aliases"
     };
@@ -654,7 +760,7 @@ async fn clear_users(ctx: &Context, msg: &Message, _args: Args) -> CommandResult
     let msg_to_send = if is_super_user(ctx, msg).await {
         let mut data = ctx.data.write().await;
         let all_data = data.get_mut::<Aliases>().unwrap();
-        all_data.clear_users(chat_id(msg)).await
+        all_data.clear_users(chat_id(msg))
     } else {
         "Only administrator or owner can clear allowed users list"
     };

@@ -41,7 +41,7 @@ Target:
 t#  : Target value to be a success
 
 Failure: 
-f#  : Value under which it is count as failuer
+f#  : Value under which it is count as failure
 
 Reason:
 :  : Any text after `:` will be a comment
@@ -51,25 +51,89 @@ See the underlying crate `caith`'s [Readme for the full syntax](https://github.c
 
 ## Aliases
 
-You can set alias to roll expression:
-```
-/alias set fs 1d6ie6 - 1d6ie6
-> Alias fs set
+Aliases can be set per channel and per user. Basically, they store some expression and can
+be called instead of a dice command. Imagine the alias `FS` has been setup to be `1d6! -
+1d6!`. You can then do:
 
-/r fs
+```
+/r $FS
+> Geob roll: [6][4] - [5] Result: 5
+```
+
+### Global Aliases
+
+Global aliases are accessible to all the user in the channel. 
+
+You can set a global alias:
+```
+/alias setg fs 1d6ie6 - 1d6ie6
+> Alias `$FS` set
+
+/r $FS
 > Geob roll: [4] - [5] Result: -1
 ```
 
-To use aliases, you need to create a role in the server with Administrator permission.
+You can delete a global alias:
+```
+/alias delg fs
+```
 
-The administrator can manipulate aliases, and can add/remove user to the list of people
-allowed to manipulate aliases:
+Global aliases are turned uppercase in order to distinguish them from user's aliases when
+using them.
+
+Only the server's owner, user with `Administrator` permission and specifically allowed
+users can manage global aliases.
+
+To allow user to tamper with the global aliases:
 
 ```
-/alias allow @User<Tab>
-/alias disallow @User<Tab>
+/alias allow @User<Tab> @User2<Tab>
+/alias disallow @User<Tab> @User2<Tab>
 ```
 
 It is important to use the `Tab` key to complete the user to get the mention.
 
-Once in the list, the user can add/delete alias without having Administrator permission.
+Once in the list, the user can add/delete global aliases without having Administrator
+permission.
+
+### User's Aliases
+
+Each user can set their own alias only accessible by them:
+
+```
+/alias set att d20
+/r $att
+> Geob roll: [11] Result: 11
+```
+
+Users aliases are turn to lowercase to avoid conflict with global ones.
+
+### Aliases Expansion
+
+When setting an alias, you can use aliases. Global aliases can only use other global
+aliases and users can refer to either their own aliases or global ones:
+
+```
+/alias setg ATT d20
+/alias set att $ATT + 4
+/r $att
+> Geob roll: [12] + 4 Result: 16
+```
+
+Alias expansion occurs on use. So you can do things like that:
+
+```
+/alias setg ATT d20
+/alias set att_bonus +4
+/alias set att $ATT $att_bonus
+/r $att
+> Geob roll: [11] +4 Result: 15
+/alias set att_bonus +5
+/r $att
+> Geob roll: [11] +5 Result: 16
+```
+
+Redefining `att_bonus` has an impact on `$att`.
+
+Of course, if you go messy and delete aliases referenced in others, you'll end with alias
+not found errors on use.
