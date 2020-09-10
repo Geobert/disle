@@ -1,6 +1,6 @@
 [package]
 name = "disle"
-version = "0.5.3"
+version = "0.6.0"
 authors = ["Geobert Quach <geobert@protonmail.com>"]
 edition = "2018"
 
@@ -8,8 +8,8 @@ edition = "2018"
 
 [dependencies]
 tokio = { version = "0.2.22", features = ["macros", "sync", "signal", "rt-threaded"] }
-caith = "1.0.0"
-ron = "0.6.0"
+caith = "2.0.0"
+ron = "0.6.2"
 serde = { version = "1.0.115", features = ["serde_derive"] }
 futures = "0.3.5"
 serenity = "0.9.0-rc.0"

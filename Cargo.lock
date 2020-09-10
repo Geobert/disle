@@ -130,9 +130,9 @@ checksum = "0e4cec68f03f32e44924783795810fa50a7035d8c8ebe78580ad7e6c703fba38"
 
 [[package]]
 name = "caith"
-version = "1.0.0"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f09e62a425bd4a8f8838b3a18f2472ef497fdf69850b58e6ded1f0eda796459"
+checksum = "47174c31b460db727a0f17505c11c9e0e6785af82f24e2c0e5dae0f68e303202"
 dependencies = [
  "pest",
  "pest_derive",
@@ -194,7 +194,7 @@ dependencies = [
 
 [[package]]
 name = "disle"
-version = "0.5.3"
+version = "0.6.0"
 dependencies = [
  "caith",
  "futures",
@@ -946,9 +946,9 @@ dependencies = [
 
 [[package]]
 name = "ron"
-version = "0.6.0"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a91260f321dbf3b5a16ff91c451dc9eb644ce72775a6812f9c3dfffe63818f8f"
+checksum = "f8a58080b7bb83b2ea28c3b7a9a994fd5e310330b7c8ca5258d99b98128ecfe4"
 dependencies = [
  "base64 0.12.3",
  "bitflags",

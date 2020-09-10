@@ -213,11 +213,7 @@ fn err_message(err: caith::RollError) -> String {
     }
 }
 
-async fn process_roll_str(
-    input: &str,
-    ctx: &Context,
-    msg: &Message,
-) -> Result<(String, RollResult), String> {
+async fn process_roll_str(input: &str, ctx: &Context, msg: &Message) -> Result<RollResult, String> {
     // TODO: once caith can save the parsed result, manage error on `new`
     process_roll(caith::Roller::new(input).unwrap(), ctx, msg).await
 }
@@ -237,10 +233,9 @@ async fn process_roll(
     mut roller: caith::Roller,
     ctx: &Context,
     msg: &Message,
-) -> Result<(String, RollResult), String> {
+) -> Result<RollResult, String> {
     match roller.roll() {
         Ok(res) => {
-            let name = get_user_name(ctx, msg).await;
             {
                 // do not store comment for reroll
                 roller.trim_reason();
@@ -248,7 +243,7 @@ async fn process_roll(
                 let reroll_table = data.get_mut::<RerollTable>().unwrap();
                 reroll_table.insert(msg.author.to_string(), roller);
             }
-            Ok((name, res))
+            Ok(res)
         }
         Err(err) => Err(err_message(err)),
     }
@@ -280,6 +275,18 @@ async fn process_roll(
 ///     Failure:
 ///     f#  : Value under which it is count as failure
 ///
+///     Repeatition:
+///     a roll can be repeated with `^` operator: `(2d6 + 6) ^ 8` will roll eight times the expression.
+///
+///     Summed repeatition:
+///     with the `^+` operator, the roll will be repeated and all the totals summed.
+///
+///     Sorted repeatition:
+///     with the `^#` operator, the roll will be repeated and sorted by total.
+///
+///     OVA roll:
+///     positive: `ova(12)` or negative: `ova(-5)`
+///
 ///     Reason:
 ///     :   : Any text after `:` will be a comment"
 /// ```
@@ -308,7 +315,16 @@ async fn roll(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
             get_roll_help_msg()
         } else {
             match process_roll_str(&input, ctx, msg).await {
-                Ok((name, res)) => format!("{} roll: {}", name, res),
+                Ok(res) => format!(
+                    "{} roll: {}{}",
+                    msg.author,
+                    if res.as_repeated().is_some() {
+                        "\n"
+                    } else {
+                        ""
+                    },
+                    res
+                ),
                 Err(msg) => msg,
             }
         };
@@ -338,7 +354,7 @@ async fn reroll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             Some(roller) => {
                 let cmd = roller.as_str().to_string();
                 match process_roll(roller, ctx, msg).await {
-                    Ok((name, res)) => format!("{} reroll `{}`: {}", name, cmd, res),
+                    Ok(res) => format!("{} reroll `{}`: {}", msg.author, cmd, res),
                     Err(msg) => msg,
                 }
             }
@@ -381,7 +397,7 @@ async fn reroll_dice(ctx: &Context, msg: &Message, args: Args) -> CommandResult 
         };
         match dice {
             Ok(dice) => match process_roll_str(&dice, ctx, msg).await {
-                Ok((name, res)) => format!("{} reroll `{}`: {}", name, dice, res),
+                Ok(res) => format!("{} reroll `{}`: {}", msg.author, dice, res),
                 Err(e) => e.to_string(),
             },
             Err(err) => err,
@@ -630,7 +646,7 @@ async fn list_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
         let (user_aliases, global_aliases) =
             all_data.list_alias(chat_id(msg), *msg.author.id.as_u64());
         let fmt_aliases = |list: Vec<String>, title: String| {
-            list.iter().fold(title.to_string(), |mut acc, s| {
+            list.iter().fold(title, |mut acc, s| {
                 acc.push_str(&s);
                 acc.push('\n');
                 acc

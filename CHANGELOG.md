@@ -1,3 +1,7 @@
+# 0.6.0
+- Revamp aliases with global and per user aliases
+- Update to [`caith` 2.0.0](https://github.com/Geobert/caith/blob/master/CHANGELOG.md)
+
 # 0.5.1
 - Fix deadlock on reroll
 - Refactor alias to not depends on Discord data
