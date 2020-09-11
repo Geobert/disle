@@ -3,7 +3,12 @@ name = "disle"
 version = "0.7.0"
 authors = ["Geobert Quach <geobert@protonmail.com>"]
 edition = "2018"
-
+description = "A Discord dice roller bot with alias management"
+keywords = ["dice", "roller", "RPG", "game", "bot"]
+categories = ["games"]
+repository = "https://github.com/Geobert/disle"
+license = "MIT"
+readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
