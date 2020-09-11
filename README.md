@@ -1,6 +1,6 @@
 # Dìsle
 
-A Discord bot that rolls RPG dices, written in Rust.
+A Discord bot that rolls RPG dices, with aliases management, written in Rust.
 
 # Installation
 
