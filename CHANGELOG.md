@@ -1,3 +1,9 @@
+# 0.6.2
+- `$` is not mandatory to call alias on roll, still mandatory in alias definition when
+  referring to another alias 
+- Add a warning if ever an alias named "ova" is set as it is also a roll command in
+  `caith`
+
 # 0.6.1
 - Update to [`caith` 2.0.1](https://github.com/Geobert/caith/blob/master/CHANGELOG.md)
 
