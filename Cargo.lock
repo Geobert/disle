@@ -130,9 +130,9 @@ checksum = "0e4cec68f03f32e44924783795810fa50a7035d8c8ebe78580ad7e6c703fba38"
 
 [[package]]
 name = "caith"
-version = "2.0.0"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47174c31b460db727a0f17505c11c9e0e6785af82f24e2c0e5dae0f68e303202"
+checksum = "bf10ebe5d5508428dc13bc44c638415ca2be5f405f43a3ebc967d0376f7d1dbe"
 dependencies = [
  "pest",
  "pest_derive",
