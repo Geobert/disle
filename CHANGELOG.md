@@ -1,3 +1,6 @@
+# 0.7.0
+- Global alias can reference a user alias, error detection done on roll
+
 # 0.6.2
 - `$` is not mandatory to call alias on roll, still mandatory in alias definition when
   referring to another alias 

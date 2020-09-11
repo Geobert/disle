@@ -116,7 +116,7 @@ aliases and users can refer to either their own aliases or global ones:
 ```
 /alias setg ATT d20
 /alias set att $ATT + 4
-/r $att
+/r att
 > Geob roll: [12] + 4 Result: 16
 ```
 
@@ -126,14 +126,22 @@ Alias expansion occurs on use. So you can do things like that:
 /alias setg ATT d20
 /alias set att_bonus +4
 /alias set att $ATT $att_bonus
-/r $att
+/r att
 > Geob roll: [11] +4 Result: 15
 /alias set att_bonus +5
-/r $att
+/r att
 > Geob roll: [11] +5 Result: 16
 ```
 
 Redefining `att_bonus` has an impact on `$att`.
+
+Global alias can reference a user alias:
+```
+/alias setg DAG d20 + $dagger
+```
+
+but on calling the alias, if the user don't have `$dagger` defined or if a cycle occurs,
+you'll get an error.
 
 Of course, if you go messy and delete aliases referenced in others, you'll end with alias
 not found errors on use.
