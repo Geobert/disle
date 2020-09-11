@@ -296,24 +296,24 @@ async fn roll(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
             eprintln!("Error sending message: {:?}", e);
         }
     } else {
-        let maybe_alias = args.single::<String>().unwrap();
-
-        let input = {
-            let data = ctx.data.read().await;
-            let all_data = data.get::<Aliases>().unwrap();
-            match all_data.get_alias(&maybe_alias, chat_id(msg), *msg.author.id.as_u64()) {
-                Ok(Some(command)) => format!("{} {}", command, args.rest()),
-                Ok(None) => {
-                    args.restore();
-                    args.rest().to_owned()
-                }
-                Err(err) => err,
-            }
-        };
-
-        let msg_to_send = if input.starts_with("help") {
+        let msg_to_send = if args.rest().starts_with("help") {
             get_roll_help_msg()
         } else {
+            let maybe_alias = args.single::<String>().unwrap();
+            let maybe_alias = maybe_alias.trim();
+
+            let input = {
+                let data = ctx.data.read().await;
+                let all_data = data.get::<Aliases>().unwrap();
+                match all_data.get_alias(&maybe_alias, chat_id(msg), *msg.author.id.as_u64()) {
+                    Ok(Some(command)) => format!("{} {}", command, args.rest()),
+                    Ok(None) => {
+                        args.restore();
+                        args.rest().to_owned()
+                    }
+                    Err(err) => err,
+                }
+            };
             match process_roll_str(&input, ctx, msg).await {
                 Ok(res) => format!(
                     "{} roll: {}{}",
@@ -325,7 +325,10 @@ async fn roll(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
                     },
                     res
                 ),
-                Err(msg) => msg,
+                Err(mut msg) => {
+                    msg.insert_str(msg.len() - 4, ", or an alias");
+                    msg
+                }
             }
         };
         send_message(ctx, msg.channel_id, &msg_to_send).await;

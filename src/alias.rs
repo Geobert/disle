@@ -256,6 +256,11 @@ impl AllData {
                     .or_insert_with(HashMap::new);
                 let alias = alias.to_lowercase();
                 let msg = format!("Alias `${}` set for user {}", alias, user_name);
+                let msg = if alias == "ova" {
+                    format!("{}\nWarning: `ova` is also a roll command, if you want to call it, don't add space before parenthesis:\n`ova(5)`, not `ova (5)`", msg)
+                } else {
+                    msg
+                };
                 user_aliases.insert(alias, command);
                 msg
             }
@@ -337,13 +342,14 @@ impl AllData {
             }
         };
 
-        let search_global = |data: &Data, alias: &str| match data.global_aliases.get(alias) {
-            Some(cmd) => match self.expand_global_alias(&cmd, chat_id) {
-                Ok(expanded) => Ok(recompose_rest(&expanded)),
-                Err(err) => Err(err),
-            },
-            None => Ok(None),
-        };
+        let search_global =
+            |data: &Data, alias: &str| match data.global_aliases.get(&alias.to_uppercase()) {
+                Some(cmd) => match self.expand_global_alias(&cmd, chat_id) {
+                    Ok(expanded) => Ok(recompose_rest(&expanded)),
+                    Err(err) => Err(err),
+                },
+                None => Ok(None),
+            };
 
         match self.get(&chat_id) {
             Some(data) => match data.users_aliases.get(&user_id) {
