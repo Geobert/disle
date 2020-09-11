@@ -156,17 +156,25 @@ impl AllData {
                             alias
                         )));
                     } else {
-                        match self.get_global_alias(&alias, chat_id) {
-                            Ok(Some(expanded)) => {
-                                alias_seen.insert(alias);
-                                let mut expanded =
-                                    self.global_alias_expansion(&expanded, chat_id, alias_seen);
-                                acc.append(&mut expanded);
+                        if alias.chars().all(|c| c.is_lowercase()) {
+                            // reference to a future user alias
+                            acc.push(SplitPart::Expr(format!("${}", alias)))
+                        } else {
+                            match self.get_global_alias(&alias, chat_id) {
+                                Ok(Some(expanded)) => {
+                                    alias_seen.insert(alias);
+                                    let mut expanded =
+                                        self.global_alias_expansion(&expanded, chat_id, alias_seen);
+                                    acc.append(&mut expanded);
+                                }
+                                Ok(None) => {
+                                    acc.push(SplitPart::Err(format!(
+                                        "`${}` not found amongs global aliases",
+                                        alias
+                                    )));
+                                }
+                                Err(err) => acc.push(SplitPart::Err(err)),
                             }
-                            Ok(None) => {
-                                acc.push(SplitPart::Err(format!("`{}` not found", alias)));
-                            }
-                            Err(err) => acc.push(SplitPart::Err(err)),
                         }
                     }
                 }
@@ -344,7 +352,7 @@ impl AllData {
 
         let search_global =
             |data: &Data, alias: &str| match data.global_aliases.get(&alias.to_uppercase()) {
-                Some(cmd) => match self.expand_global_alias(&cmd, chat_id) {
+                Some(cmd) => match self.expand_alias(&cmd, chat_id, user_id) {
                     Ok(expanded) => Ok(recompose_rest(&expanded)),
                     Err(err) => Err(err),
                 },
