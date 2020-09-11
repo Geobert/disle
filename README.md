@@ -1,3 +1,6 @@
+[![Crates.io](https://img.shields.io/crates/d/disle.svg)](https://crates.io/crates/disle)
+[![Crates.io](https://img.shields.io/crates/v/disle.svg)](https://crates.io/crates/disle)
+
 # Dìsle
 
 A Discord bot that rolls RPG dices, with aliases management, written in Rust.
