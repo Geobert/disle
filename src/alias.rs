@@ -335,25 +335,26 @@ impl AllData {
         chat_id: u64,
         user_id: u64,
     ) -> Result<Option<String>, String> {
-        let (alias, rest) =
-            if let Some(idx) = alias.find(|c| c == '+' || c == '-' || c == '*' || c == '/') {
-                (&alias[..idx], Some(&alias[idx..]))
-            } else {
-                (alias, None)
-            };
+        let (alias, rest) = if let Some(idx) =
+            alias.find(|c: char| c == '+' || c == '-' || c == '*' || c == '/' || c.is_whitespace())
+        {
+            (&alias[..idx], Some(&alias[idx..]))
+        } else {
+            (alias, None)
+        };
         let alias = alias.trim_matches(|c: char| c == '$' || c.is_whitespace());
         let recompose_rest = |cmd: &String| {
             if let Some(rest) = rest {
-                Some(format!("{} {}", cmd, rest))
+                format!("{} {}", cmd, rest)
             } else {
-                Some(cmd.clone())
+                cmd.clone()
             }
         };
 
         let search_global =
             |data: &Data, alias: &str| match data.global_aliases.get(&alias.to_uppercase()) {
-                Some(cmd) => match self.expand_alias(&cmd, chat_id, user_id) {
-                    Ok(expanded) => Ok(recompose_rest(&expanded)),
+                Some(cmd) => match self.expand_alias(&recompose_rest(&cmd), chat_id, user_id) {
+                    Ok(expanded) => Ok(Some(expanded)),
                     Err(err) => Err(err),
                 },
                 None => Ok(None),
@@ -362,8 +363,8 @@ impl AllData {
         match self.get(&chat_id) {
             Some(data) => match data.users_aliases.get(&user_id) {
                 Some(user_aliases) => match user_aliases.get(alias) {
-                    Some(cmd) => match self.expand_alias(&cmd, chat_id, user_id) {
-                        Ok(expanded) => Ok(recompose_rest(&expanded)),
+                    Some(cmd) => match self.expand_alias(&recompose_rest(&cmd), chat_id, user_id) {
+                        Ok(expanded) => Ok(Some(expanded)),
                         Err(err) => Err(err),
                     },
                     None => search_global(data, &alias),

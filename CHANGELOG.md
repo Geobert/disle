@@ -1,3 +1,9 @@
+# 0.7.1
+- on `/roll`, we can now reference other aliases in the `/roll` expression using `$`.
+  Before, and since 0.6.2, we could call an alias without `$` prefix but we couldn't use
+  another alias in the roll, now this works: `/r fs + $force`, with `fs` and `force` being
+  2 defined aliases.
+
 # 0.7.0
 - Global alias can reference a user alias, error detection done on roll
 

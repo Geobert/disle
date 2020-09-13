@@ -290,7 +290,7 @@ async fn process_roll(
 ///     Reason:
 ///     :   : Any text after `:` will be a comment"
 /// ```
-async fn roll(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+async fn roll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     if args.is_empty() {
         if let Err(e) = msg.channel_id.say(&ctx.http, get_roll_help_msg()).await {
             eprintln!("Error sending message: {:?}", e);
@@ -299,18 +299,12 @@ async fn roll(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
         let msg_to_send = if args.rest().starts_with("help") {
             get_roll_help_msg()
         } else {
-            let maybe_alias = args.single::<String>().unwrap();
-            let maybe_alias = maybe_alias.trim();
-
             let input = {
                 let data = ctx.data.read().await;
                 let all_data = data.get::<Aliases>().unwrap();
-                match all_data.get_alias(&maybe_alias, chat_id(msg), *msg.author.id.as_u64()) {
-                    Ok(Some(command)) => format!("{} {}", command, args.rest()),
-                    Ok(None) => {
-                        args.restore();
-                        args.rest().to_owned()
-                    }
+                match all_data.get_alias(args.rest(), chat_id(msg), *msg.author.id.as_u64()) {
+                    Ok(Some(command)) => command,
+                    Ok(None) => args.rest().to_string(),
                     Err(err) => err,
                 }
             };
