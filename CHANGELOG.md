@@ -1,3 +1,6 @@
+# 0.8.0
+- on critic, add a reaction emoji to the message
+
 # 0.7.1
 - on `/roll`, we can now reference other aliases in the `/roll` expression using `$`.
   Before, and since 0.6.2, we could call an alias without `$` prefix but we couldn't use

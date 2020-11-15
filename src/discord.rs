@@ -3,7 +3,7 @@ use std::{
     env,
 };
 
-use caith::RollResult;
+use caith::{Critic, RollResult};
 use futures::future::FutureExt;
 
 use serenity::{
@@ -18,6 +18,7 @@ use serenity::{
         StandardFramework,
     },
     http::Http,
+    model::channel::ReactionType,
     model::{
         channel::{Message, PrivateChannel},
         guild::GuildStatus,
@@ -110,7 +111,7 @@ impl EventHandler for Handler {
                 GuildStatus::OnlinePartialGuild(g) => g.id,
                 GuildStatus::OnlineGuild(g) => g.id,
                 GuildStatus::Offline(g) => g.id,
-                GuildStatus::__Nonexhaustive => GuildId(0),
+                _ => GuildId(0),
             };
             if guild_id != GuildId(0) {
                 let mut data = ctx.data.write().await;
@@ -177,7 +178,7 @@ async fn dispatch_error(ctx: &Context, msg: &Message, error: DispatchError) {
             .channel_id
             .say(
                 &ctx.http,
-                &format!("Try this again in {} seconds.", seconds),
+                &format!("Try this again in {} seconds.", seconds.as_secs()),
             )
             .await;
     }
@@ -249,6 +250,25 @@ async fn process_roll(
     }
 }
 
+async fn react_to(ctx: &Context, msg: &Message, crit: Option<HashSet<Critic>>) -> CommandResult {
+    if let Some(crit) = crit {
+        for c in crit.iter() {
+            match c {
+                Critic::No => {}
+                Critic::Min => {
+                    msg.react(&ctx.http, ReactionType::Unicode("🤬".to_string()))
+                        .await?;
+                }
+                Critic::Max => {
+                    msg.react(&ctx.http, ReactionType::Unicode("🥳".to_string()))
+                        .await?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 #[command]
 #[aliases("r")]
 /// ```
@@ -296,36 +316,49 @@ async fn roll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             eprintln!("Error sending message: {:?}", e);
         }
     } else {
-        let msg_to_send = if args.rest().starts_with("help") {
-            get_roll_help_msg()
+        let (msg_to_send, crit) = if args.rest().starts_with("help") {
+            (get_roll_help_msg(), None)
         } else {
             let input = {
                 let data = ctx.data.read().await;
                 let all_data = data.get::<Aliases>().unwrap();
-                match all_data.get_alias(args.rest(), chat_id(msg), *msg.author.id.as_u64()) {
+                let mut alias_seen = HashSet::new();
+                match all_data.get_alias(
+                    args.rest(),
+                    chat_id(msg),
+                    *msg.author.id.as_u64(),
+                    &mut alias_seen,
+                ) {
                     Ok(Some(command)) => command,
                     Ok(None) => args.rest().to_string(),
                     Err(err) => err,
                 }
             };
             match process_roll_str(&input, ctx, msg).await {
-                Ok(res) => format!(
-                    "{} roll: {}{}",
-                    msg.author,
-                    if res.as_repeated().is_some() {
-                        "\n"
-                    } else {
-                        ""
-                    },
-                    res
-                ),
+                Ok(res) => {
+                    let set = crate::search_crit(&res);
+                    (
+                        format!(
+                            "{} roll: {}{}",
+                            msg.author,
+                            if res.as_repeated().is_some() {
+                                "\n"
+                            } else {
+                                ""
+                            },
+                            res
+                        ),
+                        if set.is_empty() { None } else { Some(set) },
+                    )
+                }
                 Err(mut msg) => {
                     msg.insert_str(msg.len() - 4, ", or an alias");
-                    msg
+                    (msg, None)
                 }
             }
         };
-        send_message(ctx, msg.channel_id, &msg_to_send).await;
+        let sent_msg = send_message(ctx, msg.channel_id, &msg_to_send).await?;
+        react_to(ctx, &sent_msg, crit).await?;
     }
     Ok(())
 }
@@ -339,8 +372,8 @@ async fn roll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 /// ```
 async fn reroll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let input = args.rest();
-    let msg_to_send = if input.starts_with("help") {
-        get_roll_help_msg()
+    let (msg_to_send, crit) = if input.starts_with("help") {
+        (get_roll_help_msg(), None)
     } else {
         let roller = {
             let mut data = ctx.data.write().await;
@@ -351,15 +384,22 @@ async fn reroll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             Some(roller) => {
                 let cmd = roller.as_str().to_string();
                 match process_roll(roller, ctx, msg).await {
-                    Ok(res) => format!("{} reroll `{}`: {}", msg.author, cmd, res),
-                    Err(msg) => msg,
+                    Ok(res) => {
+                        let set = crate::search_crit(&res);
+                        (
+                            format!("{} reroll `{}`: {}", msg.author, cmd, res),
+                            if set.is_empty() { None } else { Some(set) },
+                        )
+                    }
+                    Err(msg) => (msg, None),
                 }
             }
-            None => "No previous roll".to_owned(),
+            None => ("No previous roll".to_owned(), None),
         }
     };
 
-    send_message(ctx, msg.channel_id, &msg_to_send).await;
+    let sent_msg = send_message(ctx, msg.channel_id, &msg_to_send).await?;
+    react_to(ctx, &sent_msg, crit).await?;
     Ok(())
 }
 
@@ -401,7 +441,7 @@ async fn reroll_dice(ctx: &Context, msg: &Message, args: Args) -> CommandResult 
         }
     };
 
-    send_message(ctx, msg.channel_id, &msg_to_send).await;
+    send_message(ctx, msg.channel_id, &msg_to_send).await?;
     Ok(())
 }
 
@@ -431,7 +471,7 @@ async fn set_global_alias(ctx: &Context, msg: &Message, mut args: Args) -> Comma
         "You are not allowed to set global aliases".to_owned()
     };
 
-    send_message(ctx, msg.channel_id, &msg_to_send).await;
+    send_message(ctx, msg.channel_id, &msg_to_send).await?;
     Ok(())
 }
 
@@ -452,7 +492,7 @@ async fn del_global_alias(ctx: &Context, msg: &Message, args: Args) -> CommandRe
         "Only allowed users can delete global aliases".to_owned()
     };
 
-    send_message(ctx, msg.channel_id, &msg_to_send).await;
+    send_message(ctx, msg.channel_id, &msg_to_send).await?;
     Ok(())
 }
 
@@ -478,7 +518,7 @@ async fn set_user_alias(ctx: &Context, msg: &Message, mut args: Args) -> Command
             &get_user_name(ctx, msg).await,
         )
     };
-    send_message(ctx, msg.channel_id, &msg_to_send).await;
+    send_message(ctx, msg.channel_id, &msg_to_send).await?;
     Ok(())
 }
 
@@ -497,7 +537,7 @@ async fn del_user_alias(ctx: &Context, msg: &Message, mut args: Args) -> Command
         let all_data = data.get_mut::<Aliases>().unwrap();
         all_data.del_user_alias(&alias, chat_id(msg), *msg.author.id.as_u64())
     };
-    send_message(ctx, msg.channel_id, &msg_to_send).await;
+    send_message(ctx, msg.channel_id, &msg_to_send).await?;
     Ok(())
 }
 
@@ -513,7 +553,7 @@ async fn clear_user_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandR
         let all_data = data.get_mut::<Aliases>().unwrap();
         all_data.clear_user_aliases(chat_id(msg), *msg.author.id.as_u64())
     };
-    send_message(ctx, msg.channel_id, &msg_to_send).await;
+    send_message(ctx, msg.channel_id, &msg_to_send).await?;
     Ok(())
 }
 
@@ -533,7 +573,7 @@ async fn allow_user_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandR
                 msg.channel_id,
                 "User to add must be mentioned (with `@`)",
             )
-            .await;
+            .await?;
         } else {
             let mut users = String::new();
             for user in msg.mentions.iter() {
@@ -559,7 +599,7 @@ async fn allow_user_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandR
                     }
                 ),
             )
-            .await;
+            .await?;
         }
     } else {
         send_message(
@@ -567,7 +607,7 @@ async fn allow_user_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandR
             msg.channel_id,
             "Only administrator or server's owner can allow a user to manage global aliases",
         )
-        .await;
+        .await?;
     }
 
     Ok(())
@@ -589,7 +629,7 @@ async fn disallow_user_alias(ctx: &Context, msg: &Message, _args: Args) -> Comma
                 msg.channel_id,
                 "User to remove must be mentionne (with `@`)",
             )
-            .await;
+            .await?;
         } else {
             let mut users = String::new();
             for user in msg.mentions.iter() {
@@ -615,7 +655,7 @@ async fn disallow_user_alias(ctx: &Context, msg: &Message, _args: Args) -> Comma
                     }
                 ),
             )
-            .await;
+            .await?;
         }
     } else {
         send_message(
@@ -623,7 +663,7 @@ async fn disallow_user_alias(ctx: &Context, msg: &Message, _args: Args) -> Comma
             msg.channel_id,
             "Only administrator or server's owner can disallow a user to manage global aliases",
         )
-        .await;
+        .await?;
     }
     Ok(())
 }
@@ -663,7 +703,7 @@ async fn list_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
         format!("{}\n{}", user_aliases, global_aliases)
     };
 
-    send_message(ctx, msg.channel_id, &msg_to_send).await;
+    send_message(ctx, msg.channel_id, &msg_to_send).await?;
     Ok(())
 }
 
@@ -693,9 +733,9 @@ async fn list_users(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
                 list.push('\n');
             }
         }
-        send_message(ctx, msg.channel_id, &list).await;
+        send_message(ctx, msg.channel_id, &list).await?;
     } else {
-        send_message(ctx, msg.channel_id, "No allowed user").await;
+        send_message(ctx, msg.channel_id, "No allowed user").await?;
     }
 
     Ok(())
@@ -717,7 +757,7 @@ async fn save_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
     } else {
         "Only allowed users can save the configuration"
     };
-    send_message(ctx, msg.channel_id, &msg_to_send).await;
+    send_message(ctx, msg.channel_id, &msg_to_send).await?;
     Ok(())
 }
 
@@ -739,7 +779,7 @@ async fn load_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
         "Only allowed users can load the configuration"
     };
 
-    send_message(ctx, msg.channel_id, &msg_to_send).await;
+    send_message(ctx, msg.channel_id, &msg_to_send).await?;
     Ok(())
 }
 
@@ -758,7 +798,7 @@ async fn clear_global_aliases(ctx: &Context, msg: &Message, _args: Args) -> Comm
     } else {
         "Only admin users can clear all the aliases"
     };
-    send_message(ctx, msg.channel_id, msg_to_send).await;
+    send_message(ctx, msg.channel_id, msg_to_send).await?;
     Ok(())
 }
 
@@ -777,21 +817,34 @@ async fn clear_users(ctx: &Context, msg: &Message, _args: Args) -> CommandResult
     } else {
         "Only administrator or owner can clear allowed users list"
     };
-    send_message(ctx, msg.channel_id, msg_to_send).await;
+    send_message(ctx, msg.channel_id, msg_to_send).await?;
     Ok(())
 }
 
 #[inline]
-pub async fn send_message(ctx: &Context, channel_id: ChannelId, msg_to_send: &str) {
-    if let Err(e) = channel_id.say(&ctx.http, msg_to_send).await {
-        eprintln!("Error sending message: {:?}", e);
+pub async fn send_message(
+    ctx: &Context,
+    channel_id: ChannelId,
+    msg_to_send: &str,
+) -> Result<Message, serenity::Error> {
+    match channel_id.say(&ctx.http, msg_to_send).await {
+        Err(e) => {
+            eprintln!("Error sending message: {:?}", e);
+            Err(e)
+        }
+        Ok(msg) => Ok(msg),
     }
 }
 
 pub async fn run() {
     // Configure the client with your Discord bot token in the environment.
-    let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
+    let token = env::var("DISCORD_TOKEN");
+    if token.is_err() {
+        eprintln!("No `DISCORD_TOKEN` env var, giving up Discord connection");
+        return;
+    }
 
+    let token = token.unwrap();
     let http = Http::new_with_token(&token);
 
     // We will fetch your bot's owners and id
@@ -818,7 +871,7 @@ pub async fn run() {
         .group(&ROLL_GROUP)
         .group(&ALIAS_GROUP);
 
-    let mut client = Client::new(&token)
+    let mut client = Client::builder(&token)
         .event_handler(Handler)
         .framework(framework)
         .await

@@ -70,6 +70,16 @@ impl<'a> Display for SplitPart {
     }
 }
 
+impl SplitPart {
+    pub fn is_empty(&self) -> bool {
+        match self {
+            SplitPart::Alias(a) => a.is_empty(),
+            SplitPart::Expr(e) => e.is_empty(),
+            SplitPart::Err(e) => e.is_empty(),
+        }
+    }
+}
+
 fn split_cmd(mut cmd: &str) -> Vec<SplitPart> {
     let mut splitted = Vec::new();
     while let Some(start_alias) = cmd.find('$') {
@@ -98,7 +108,6 @@ fn split_cmd(mut cmd: &str) -> Vec<SplitPart> {
 
 fn collect_expanded(expanded: Vec<SplitPart>) -> Result<String, String> {
     let mut had_error = false;
-    // 2nd field of tuple is
     let s = expanded
         .into_iter()
         .fold(String::new(), |acc, part| match part {
@@ -113,9 +122,17 @@ fn collect_expanded(expanded: Vec<SplitPart>) -> Result<String, String> {
                 if !had_error {
                     had_error = true;
                     // no errors before, wipe all and only keep errors from now on
-                    format!("{}\n", part)
+                    if !part.is_empty() {
+                        format!("{}", part)
+                    } else {
+                        "".to_string()
+                    }
                 } else {
-                    format!("{}{}\n", acc, part)
+                    if !part.is_empty() {
+                        format!("{}\n{}", acc, part)
+                    } else {
+                        acc
+                    }
                 }
             }
         });
@@ -129,6 +146,7 @@ fn collect_expanded(expanded: Vec<SplitPart>) -> Result<String, String> {
 
 impl AllData {
     fn expand_alias(&self, cmd: &str, chat_id: u64, user_id: u64) -> Result<String, String> {
+        dbg!("expand_alias");
         let mut alias_seen = HashSet::new();
         collect_expanded(self.alias_expansion(cmd, chat_id, user_id, &mut alias_seen))
     }
@@ -155,26 +173,24 @@ impl AllData {
                             "`{}` was already expanded, we have a cycle definition",
                             alias
                         )));
+                    } else if alias.chars().all(|c| c.is_lowercase()) {
+                        // reference to a future user alias
+                        acc.push(SplitPart::Expr(format!("${}", alias)))
                     } else {
-                        if alias.chars().all(|c| c.is_lowercase()) {
-                            // reference to a future user alias
-                            acc.push(SplitPart::Expr(format!("${}", alias)))
-                        } else {
-                            match self.get_global_alias(&alias, chat_id) {
-                                Ok(Some(expanded)) => {
-                                    alias_seen.insert(alias);
-                                    let mut expanded =
-                                        self.global_alias_expansion(&expanded, chat_id, alias_seen);
-                                    acc.append(&mut expanded);
-                                }
-                                Ok(None) => {
-                                    acc.push(SplitPart::Err(format!(
-                                        "`${}` not found amongs global aliases",
-                                        alias
-                                    )));
-                                }
-                                Err(err) => acc.push(SplitPart::Err(err)),
+                        match self.get_global_alias(&alias, chat_id) {
+                            Ok(Some(expanded)) => {
+                                alias_seen.insert(alias);
+                                let mut expanded =
+                                    self.global_alias_expansion(&expanded, chat_id, alias_seen);
+                                acc.append(&mut expanded);
                             }
+                            Ok(None) => {
+                                acc.push(SplitPart::Err(format!(
+                                    "`${}` not found amongs global aliases",
+                                    alias
+                                )));
+                            }
+                            Err(err) => acc.push(SplitPart::Err(err)),
                         }
                     }
                 }
@@ -202,9 +218,9 @@ impl AllData {
                             alias
                         )));
                     } else {
-                        match self.get_alias(&alias, chat_id, user_id) {
+                        alias_seen.insert(alias.clone());
+                        match self.get_alias(&alias, chat_id, user_id, alias_seen) {
                             Ok(Some(expanded)) => {
-                                alias_seen.insert(alias);
                                 let mut expanded =
                                     self.alias_expansion(&expanded, chat_id, user_id, alias_seen);
                                 acc.append(&mut expanded);
@@ -334,6 +350,7 @@ impl AllData {
         alias: &str,
         chat_id: u64,
         user_id: u64,
+        alias_seen: &mut HashSet<String>,
     ) -> Result<Option<String>, String> {
         let (alias, rest) = if let Some(idx) =
             alias.find(|c: char| c == '+' || c == '-' || c == '*' || c == '/' || c.is_whitespace())
@@ -363,7 +380,12 @@ impl AllData {
         match self.get(&chat_id) {
             Some(data) => match data.users_aliases.get(&user_id) {
                 Some(user_aliases) => match user_aliases.get(alias) {
-                    Some(cmd) => match self.expand_alias(&recompose_rest(&cmd), chat_id, user_id) {
+                    Some(cmd) => match collect_expanded(self.alias_expansion(
+                        &recompose_rest(&cmd),
+                        chat_id,
+                        user_id,
+                        alias_seen,
+                    )) {
                         Ok(expanded) => Ok(Some(expanded)),
                         Err(err) => Err(err),
                     },
@@ -531,7 +553,11 @@ mod tests {
     #[test]
     fn get_global_alias_test() {
         let all = create_all_data();
-        assert_eq!(Ok(Some("1d4".to_string())), all.get_alias("$GALIAS1", 0, 1));
+        let mut alias_seen = HashSet::new();
+        assert_eq!(
+            Ok(Some("1d4".to_string())),
+            all.get_alias("$GALIAS1", 0, 1, &mut alias_seen)
+        );
     }
 
     #[test]
@@ -574,9 +600,7 @@ mod tests {
     fn expand_self_call_alias() {
         let all = create_all_data();
         assert_eq!(
-            Err(
-                "`$alias_call_self` was already expanded, we have a cycle definition\n".to_string()
-            ),
+            Err("`$alias_call_self` was already expanded, we have a cycle definition".to_string()),
             all.expand_alias("$alias_call_self", 0, 1)
         );
     }
@@ -585,9 +609,7 @@ mod tests {
     fn expand_alias_calling_self_call_alias() {
         let all = create_all_data();
         assert_eq!(
-            Err(
-                "`$alias_call_self` was already expanded, we have a cycle definition\n".to_string()
-            ),
+            Err("`$alias_call_self` was already expanded, we have a cycle definition".to_string()),
             all.expand_alias("$alias_call_self", 0, 1)
         );
     }
@@ -596,7 +618,7 @@ mod tests {
     fn expand_cycling_alias() {
         let all = create_all_data();
         assert_eq!(
-            Err("`$cycle_alias1` was already expanded, we have a cycle definition\n".to_string()),
+            Err("`$cycle_alias1` was already expanded, we have a cycle definition".to_string()),
             all.expand_alias("$cycle_alias1", 0, 1)
         );
     }
@@ -617,15 +639,17 @@ mod tests {
     #[test]
     fn get_alias() {
         let mut all = create_all_data();
+        let mut alias_seen = HashSet::new();
         assert_eq!(
             Ok(Some("1d4 + 1d6".to_string())),
-            all.get_alias("alias2", 0, 1)
+            all.get_alias("alias2", 0, 1, &mut alias_seen)
         );
 
+        alias_seen.clear();
         all.set_global_alias("GALIAS1".to_string(), "4".to_string(), 0);
         assert_eq!(
             Ok(Some("4 + 1d6".to_string())),
-            all.get_alias("alias2", 0, 1)
+            all.get_alias("alias2", 0, 1, &mut alias_seen)
         );
 
         all.set_global_alias("ATT".to_string(), "d20".to_string(), 0);
@@ -637,7 +661,11 @@ mod tests {
             1,
             "toto",
         );
-        assert_eq!(Ok(Some("d20 +4".to_string())), all.get_alias("att", 0, 1));
+        alias_seen.clear();
+        assert_eq!(
+            Ok(Some("d20 +4".to_string())),
+            all.get_alias("att", 0, 1, &mut alias_seen)
+        );
     }
 
     fn create_all_data() -> AllData {
