@@ -1,3 +1,6 @@
+# 0.9.0
+- if no dice in a roll, add a "game die" reaction to notify
+
 # 0.8.0
 - on critic, add a reaction emoji to the message
 

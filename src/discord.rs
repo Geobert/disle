@@ -254,7 +254,11 @@ async fn react_to(ctx: &Context, msg: &Message, crit: Option<HashSet<Critic>>) -
     if let Some(crit) = crit {
         for c in crit.iter() {
             match c {
-                Critic::No => {}
+                Critic::No => {
+                    // this is constructed in roll* to say there was no dice in the expr
+                    msg.react(&ctx.http, ReactionType::Unicode("🎲".to_string()))
+                        .await?;
+                }
                 Critic::Min => {
                     msg.react(&ctx.http, ReactionType::Unicode("🤬".to_string()))
                         .await?;
@@ -336,7 +340,7 @@ async fn roll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             };
             match process_roll_str(&input, ctx, msg).await {
                 Ok(res) => {
-                    let set = crate::search_crit(&res);
+                    let crit_set = crate::search_crit(&res);
                     (
                         format!(
                             "{} roll: {}{}",
@@ -348,7 +352,7 @@ async fn roll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                             },
                             res
                         ),
-                        if set.is_empty() { None } else { Some(set) },
+                        crate::process_crit(crit_set),
                     )
                 }
                 Err(mut msg) => {
@@ -385,10 +389,10 @@ async fn reroll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                 let cmd = roller.as_str().to_string();
                 match process_roll(roller, ctx, msg).await {
                     Ok(res) => {
-                        let set = crate::search_crit(&res);
+                        let crit_set = crate::search_crit(&res);
                         (
                             format!("{} reroll `{}`: {}", msg.author, cmd, res),
-                            if set.is_empty() { None } else { Some(set) },
+                            crate::process_crit(crit_set),
                         )
                     }
                     Err(msg) => (msg, None),
@@ -412,8 +416,8 @@ async fn reroll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 /// ```
 async fn reroll_dice(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let input = args.rest();
-    let msg_to_send = if input.starts_with("help") {
-        get_roll_help_msg()
+    let (msg_to_send, crit) = if input.starts_with("help") {
+        (get_roll_help_msg(), None)
     } else {
         let dice = {
             let mut data = ctx.data.write().await;
@@ -434,14 +438,21 @@ async fn reroll_dice(ctx: &Context, msg: &Message, args: Args) -> CommandResult 
         };
         match dice {
             Ok(dice) => match process_roll_str(&dice, ctx, msg).await {
-                Ok(res) => format!("{} reroll `{}`: {}", msg.author, dice, res),
-                Err(e) => e.to_string(),
+                Ok(res) => {
+                    let crit_set = crate::search_crit(&res);
+                    (
+                        format!("{} reroll `{}`: {}", msg.author, dice, res),
+                        crate::process_crit(crit_set),
+                    )
+                }
+                Err(e) => (e.to_string(), None),
             },
-            Err(err) => err,
+            Err(err) => (err, None),
         }
     };
 
-    send_message(ctx, msg.channel_id, &msg_to_send).await?;
+    let sent_msg = send_message(ctx, msg.channel_id, &msg_to_send).await?;
+    react_to(ctx, &sent_msg, crit).await?;
     Ok(())
 }
 

@@ -127,12 +127,10 @@ fn collect_expanded(expanded: Vec<SplitPart>) -> Result<String, String> {
                     } else {
                         "".to_string()
                     }
+                } else if !part.is_empty() {
+                    format!("{}\n{}", acc, part)
                 } else {
-                    if !part.is_empty() {
-                        format!("{}\n{}", acc, part)
-                    } else {
-                        acc
-                    }
+                    acc
                 }
             }
         });
