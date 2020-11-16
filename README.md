@@ -3,7 +3,8 @@
 
 # Dìsle
 
-A Discord bot that rolls RPG dices, with aliases management, written in Rust.
+A Discord bot that rolls RPG dices, with aliases management and reaction to critics,
+written in Rust.
 
 # Installation
 
@@ -148,3 +149,11 @@ you'll get an error.
 
 Of course, if you go messy and delete aliases referenced in others, you'll end with alias
 not found errors on use.
+
+## Reaction on Critics
+
+In a roll expression, if a dice reach its minimum value or maximum value, a reaction is
+added to the response to highlight it.
+
+Another reaction is added if the expression does not contain any die, ex: `/r 20 + 4`
+(because sometime, we miss the `d` when typing `/r d20` :p).
