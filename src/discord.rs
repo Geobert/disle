@@ -445,7 +445,7 @@ async fn reroll_dice(ctx: &Context, msg: &Message, args: Args) -> CommandResult 
                         crate::process_crit(crit_set),
                     )
                 }
-                Err(e) => (e.to_string(), None),
+                Err(e) => (e, None),
             },
             Err(err) => (err, None),
         }

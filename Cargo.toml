@@ -13,12 +13,12 @@ readme = "README.md"
 
 [dependencies]
 tokio = { version = "0.2.23", features = ["macros", "sync", "signal", "rt-threaded"] }
-caith = "2.2.0"
+caith = "2.2.1"
 # caith = { path = "../caith" }
 ron = "0.6.2"
 serde = { version = "1.0.117", features = ["serde_derive"] }
 futures = "0.3.7"
-serenity = { version = "0.9.0", optional = true }
+serenity = { version = "0.9.1", optional = true }
 
 [features]
 default = ["discord"]
