@@ -1,3 +1,6 @@
+# 0.9.1
+- update caith to 2.2.1
+
 # 0.9.0
 - if no dice in a roll, add a "game die" reaction to notify
 
