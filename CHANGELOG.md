@@ -1,3 +1,6 @@
+# 0.9.2
+- update [`caith` 3.0.0](https://github.com/Geobert/caith/blob/master/CHANGELOG.md)
+
 # 0.9.1
 - update caith to 2.2.1
 

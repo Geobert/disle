@@ -1,10 +1,10 @@
 [package]
 name = "disle"
-version = "0.9.1"
+version = "0.9.2"
 authors = ["Geobert Quach <geobert@protonmail.com>"]
 edition = "2018"
 description = "A Discord dice roller bot with alias management"
-keywords = ["dice", "roller", "RPG", "discord", "bot"]
+keywords = ["dice", "roll", "RPG", "discord", "bot"]
 categories = ["games"]
 repository = "https://github.com/Geobert/disle"
 license = "MIT"
@@ -13,7 +13,7 @@ readme = "README.md"
 
 [dependencies]
 tokio = { version = "0.2.23", features = ["macros", "sync", "signal", "rt-threaded"] }
-caith = "2.2.1"
+caith = "3.0.0"
 # caith = { path = "../caith" }
 ron = "0.6.2"
 serde = { version = "1.0.117", features = ["serde_derive"] }
