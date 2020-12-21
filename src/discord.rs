@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     env,
+    sync::Arc,
 };
 
 use caith::{Critic, RollResult};
@@ -15,12 +16,13 @@ use serenity::{
             macros::{command, group, help, hook},
             Args, CommandGroup, CommandResult, DispatchError, HelpOptions,
         },
-        StandardFramework,
+        Framework, StandardFramework,
     },
     http::Http,
     model::channel::ReactionType,
     model::{
         channel::{Message, PrivateChannel},
+        event::MessageUpdateEvent,
         guild::GuildStatus,
         id::{ChannelId, GuildId, UserId},
         prelude::Ready,
@@ -100,6 +102,11 @@ impl TypeMapKey for Aliases {
     type Value = alias::AllData;
 }
 
+pub(crate) struct FrameworkContainer;
+impl TypeMapKey for FrameworkContainer {
+    type Value = Arc<Box<dyn Framework + Send + Sync + 'static>>;
+}
+
 struct Handler;
 
 #[async_trait]
@@ -143,6 +150,23 @@ impl EventHandler for Handler {
                 let dm_is_init = data.get_mut::<InitDMTable>().unwrap();
                 dm_is_init.insert(*channel.id.as_u64());
             }
+        }
+    }
+
+    async fn message_update(
+        &self,
+        ctx: Context,
+        _old_if_available: Option<Message>,
+        new: Option<Message>,
+        _event: MessageUpdateEvent,
+    ) {
+        if let Some(msg) = new {
+            let framework = {
+                let ctx_clone = ctx.clone();
+                let data = ctx_clone.data.read().await;
+                data.get::<FrameworkContainer>().unwrap().clone()
+            };
+            framework.dispatch(ctx, msg).await;
         }
     }
 }
@@ -869,30 +893,36 @@ pub async fn run() {
         Err(why) => panic!("Could not access application info: {:?}", why),
     };
 
-    let framework = StandardFramework::new()
-        .configure(|c| {
-            c.with_whitespace(true)
-                .on_mention(Some(bot_id))
-                .prefix("/")
-                .delimiters(vec![" "])
-                .owners(owners)
-        })
-        .on_dispatch_error(dispatch_error)
-        .help(&MY_HELP)
-        .group(&ROLL_GROUP)
-        .group(&ALIAS_GROUP);
+    let framework = Arc::new(Box::new(
+        StandardFramework::new()
+            .configure(|c| {
+                c.with_whitespace(true)
+                    .on_mention(Some(bot_id))
+                    .prefix("/")
+                    .delimiters(vec![" "])
+                    .owners(owners)
+            })
+            .on_dispatch_error(dispatch_error)
+            .help(&MY_HELP)
+            .group(&ROLL_GROUP)
+            .group(&ALIAS_GROUP),
+    ) as Box<dyn Framework + Send + Sync + 'static>);
+
+    let framework2 = framework.clone();
 
     let mut client = Client::builder(&token)
         .event_handler(Handler)
-        .framework(framework)
+        .framework_arc(framework2)
         .await
         .expect("Err creating client");
+    client.cache_and_http.cache.set_max_messages(10).await;
 
     {
         let mut data = client.data.write().await;
         data.insert::<InitDMTable>(HashSet::new());
         data.insert::<RerollTable>(HashMap::new());
         data.insert::<Aliases>(alias::AllData::new());
+        data.insert::<FrameworkContainer>(framework);
     }
 
     // save for exit bot saving
