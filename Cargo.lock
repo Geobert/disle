@@ -113,9 +113,9 @@ checksum = "0e4cec68f03f32e44924783795810fa50a7035d8c8ebe78580ad7e6c703fba38"
 
 [[package]]
 name = "caith"
-version = "3.0.2"
+version = "3.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "faff0d1197011e2e2f945fbb4c350e4b7a2cfce1c961c3d9f55cd7a8930876c2"
+checksum = "4d496529e74923c3ea6b1507d673b3b5c0ea17c3396e391ac296732cb1621990"
 dependencies = [
  "pest",
  "pest_derive",
@@ -157,8 +157,7 @@ dependencies = [
 [[package]]
 name = "command_attr"
 version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "304bf8419e22184e6412d6afe87ae15dce0d204e130656704a69185e779c205e"
+source = "git+https://github.com/serenity-rs/serenity?rev=52f9dca368853f07ef580e3528a82452d4f9e7fa#52f9dca368853f07ef580e3528a82452d4f9e7fa"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -200,7 +199,7 @@ dependencies = [
 
 [[package]]
 name = "disle"
-version = "0.9.4"
+version = "0.10.0"
 dependencies = [
  "caith",
  "futures",
@@ -1059,8 +1058,7 @@ dependencies = [
 [[package]]
 name = "serenity"
 version = "0.9.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00e8fe0572712e2bcfe1122b09561599dd3d459563e48f9afd4518f9cfbbe17c"
+source = "git+https://github.com/serenity-rs/serenity?rev=52f9dca368853f07ef580e3528a82452d4f9e7fa#52f9dca368853f07ef580e3528a82452d4f9e7fa"
 dependencies = [
  "async-trait",
  "async-tungstenite",
@@ -1071,6 +1069,7 @@ dependencies = [
  "command_attr",
  "flate2",
  "futures",
+ "percent-encoding",
  "reqwest",
  "serde",
  "serde_json",

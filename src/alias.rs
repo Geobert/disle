@@ -144,7 +144,6 @@ fn collect_expanded(expanded: Vec<SplitPart>) -> Result<String, String> {
 
 impl AllData {
     fn expand_alias(&self, cmd: &str, chat_id: u64, user_id: u64) -> Result<String, String> {
-        dbg!("expand_alias");
         let mut alias_seen = HashSet::new();
         collect_expanded(self.alias_expansion(cmd, chat_id, user_id, &mut alias_seen))
     }

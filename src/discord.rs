@@ -21,10 +21,10 @@ use serenity::{
     http::Http,
     model::channel::ReactionType,
     model::{
-        channel::{Message, PrivateChannel},
+        channel::{ChannelType, GuildChannel, Message},
         event::MessageUpdateEvent,
         guild::GuildStatus,
-        id::{ChannelId, GuildId, UserId},
+        id::{GuildId, UserId},
         prelude::Ready,
         Permissions,
     },
@@ -130,26 +130,15 @@ impl EventHandler for Handler {
         }
     }
 
-    async fn private_channel_create(&self, ctx: Context, channel: &PrivateChannel) {
-        let need_init = {
-            let mut data = ctx.data.write().await;
-            let dm_is_init = data.get_mut::<InitDMTable>().unwrap();
-            dm_is_init.get(channel.id.as_u64()).is_none()
-        };
+    async fn message(&self, ctx: Context, msg: Message) {
+        if msg.is_private() {
+            load_private_alias(ctx, *msg.channel_id.as_u64()).await;
+        }
+    }
 
-        if need_init {
-            let res = {
-                let mut data = ctx.data.write().await;
-                let all_data = data.get_mut::<Aliases>().unwrap();
-                all_data.load_alias_data(*channel.id.as_u64())
-            };
-            if let Err(e) = res {
-                eprintln!("{}", e);
-            } else {
-                let mut data = ctx.data.write().await;
-                let dm_is_init = data.get_mut::<InitDMTable>().unwrap();
-                dm_is_init.insert(*channel.id.as_u64());
-            }
+    async fn channel_create(&self, ctx: Context, channel: &GuildChannel) {
+        if channel.kind == ChannelType::Private {
+            load_private_alias(ctx, *channel.id.as_u64()).await
         }
     }
 
@@ -167,6 +156,29 @@ impl EventHandler for Handler {
                 data.get::<FrameworkContainer>().unwrap().clone()
             };
             framework.dispatch(ctx, msg).await;
+        }
+    }
+}
+
+async fn load_private_alias(ctx: Context, channel_id: u64) {
+    let need_init = {
+        let mut data = ctx.data.write().await;
+        let dm_is_init = data.get_mut::<InitDMTable>().unwrap();
+        dm_is_init.get(&channel_id).is_none()
+    };
+
+    if need_init {
+        let res = {
+            let mut data = ctx.data.write().await;
+            let all_data = data.get_mut::<Aliases>().unwrap();
+            all_data.load_alias_data(channel_id)
+        };
+        if let Err(e) = res {
+            eprintln!("{}", e);
+        } else {
+            let mut data = ctx.data.write().await;
+            let dm_is_init = data.get_mut::<InitDMTable>().unwrap();
+            dm_is_init.insert(channel_id);
         }
     }
 }
@@ -385,7 +397,7 @@ async fn roll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                 }
             }
         };
-        let sent_msg = send_message(ctx, msg.channel_id, &msg_to_send).await?;
+        let sent_msg = send_message(ctx, msg, &msg_to_send).await?;
         react_to(ctx, &sent_msg, crit).await?;
     }
     Ok(())
@@ -426,7 +438,7 @@ async fn reroll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         }
     };
 
-    let sent_msg = send_message(ctx, msg.channel_id, &msg_to_send).await?;
+    let sent_msg = send_message(ctx, msg, &msg_to_send).await?;
     react_to(ctx, &sent_msg, crit).await?;
     Ok(())
 }
@@ -475,7 +487,7 @@ async fn reroll_dice(ctx: &Context, msg: &Message, args: Args) -> CommandResult 
         }
     };
 
-    let sent_msg = send_message(ctx, msg.channel_id, &msg_to_send).await?;
+    let sent_msg = send_message(ctx, msg, &msg_to_send).await?;
     react_to(ctx, &sent_msg, crit).await?;
     Ok(())
 }
@@ -506,7 +518,7 @@ async fn set_global_alias(ctx: &Context, msg: &Message, mut args: Args) -> Comma
         "You are not allowed to set global aliases".to_owned()
     };
 
-    send_message(ctx, msg.channel_id, &msg_to_send).await?;
+    send_message(ctx, msg, &msg_to_send).await?;
     Ok(())
 }
 
@@ -527,7 +539,7 @@ async fn del_global_alias(ctx: &Context, msg: &Message, args: Args) -> CommandRe
         "Only allowed users can delete global aliases".to_owned()
     };
 
-    send_message(ctx, msg.channel_id, &msg_to_send).await?;
+    send_message(ctx, msg, &msg_to_send).await?;
     Ok(())
 }
 
@@ -553,7 +565,7 @@ async fn set_user_alias(ctx: &Context, msg: &Message, mut args: Args) -> Command
             &get_user_name(ctx, msg).await,
         )
     };
-    send_message(ctx, msg.channel_id, &msg_to_send).await?;
+    send_message(ctx, msg, &msg_to_send).await?;
     Ok(())
 }
 
@@ -572,7 +584,7 @@ async fn del_user_alias(ctx: &Context, msg: &Message, mut args: Args) -> Command
         let all_data = data.get_mut::<Aliases>().unwrap();
         all_data.del_user_alias(&alias, chat_id(msg), *msg.author.id.as_u64())
     };
-    send_message(ctx, msg.channel_id, &msg_to_send).await?;
+    send_message(ctx, msg, &msg_to_send).await?;
     Ok(())
 }
 
@@ -588,7 +600,7 @@ async fn clear_user_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandR
         let all_data = data.get_mut::<Aliases>().unwrap();
         all_data.clear_user_aliases(chat_id(msg), *msg.author.id.as_u64())
     };
-    send_message(ctx, msg.channel_id, &msg_to_send).await?;
+    send_message(ctx, msg, &msg_to_send).await?;
     Ok(())
 }
 
@@ -603,12 +615,7 @@ async fn clear_user_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandR
 async fn allow_user_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
     if is_super_user(ctx, msg).await {
         if msg.mentions.is_empty() {
-            send_message(
-                ctx,
-                msg.channel_id,
-                "User to add must be mentioned (with `@`)",
-            )
-            .await?;
+            send_message(ctx, msg, "User to add must be mentioned (with `@`)").await?;
         } else {
             let mut users = String::new();
             for user in msg.mentions.iter() {
@@ -623,7 +630,7 @@ async fn allow_user_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandR
             }
             send_message(
                 ctx,
-                msg.channel_id,
+                msg,
                 &format!(
                     "{} {} been allowed to manage global aliases",
                     users,
@@ -639,7 +646,7 @@ async fn allow_user_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandR
     } else {
         send_message(
             ctx,
-            msg.channel_id,
+            msg,
             "Only administrator or server's owner can allow a user to manage global aliases",
         )
         .await?;
@@ -659,12 +666,7 @@ async fn allow_user_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandR
 async fn disallow_user_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
     if is_super_user(ctx, msg).await {
         if msg.mentions.is_empty() {
-            send_message(
-                ctx,
-                msg.channel_id,
-                "User to remove must be mentionne (with `@`)",
-            )
-            .await?;
+            send_message(ctx, msg, "User to remove must be mentionne (with `@`)").await?;
         } else {
             let mut users = String::new();
             for user in msg.mentions.iter() {
@@ -679,7 +681,7 @@ async fn disallow_user_alias(ctx: &Context, msg: &Message, _args: Args) -> Comma
             }
             send_message(
                 ctx,
-                msg.channel_id,
+                msg,
                 &format!(
                     "{} {} been forbidden to manage global aliases",
                     users,
@@ -695,7 +697,7 @@ async fn disallow_user_alias(ctx: &Context, msg: &Message, _args: Args) -> Comma
     } else {
         send_message(
             ctx,
-            msg.channel_id,
+            msg,
             "Only administrator or server's owner can disallow a user to manage global aliases",
         )
         .await?;
@@ -738,7 +740,7 @@ async fn list_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
         format!("{}\n{}", user_aliases, global_aliases)
     };
 
-    send_message(ctx, msg.channel_id, &msg_to_send).await?;
+    send_message(ctx, msg, &msg_to_send).await?;
     Ok(())
 }
 
@@ -768,9 +770,9 @@ async fn list_users(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
                 list.push('\n');
             }
         }
-        send_message(ctx, msg.channel_id, &list).await?;
+        send_message(ctx, msg, &list).await?;
     } else {
-        send_message(ctx, msg.channel_id, "No allowed user").await?;
+        send_message(ctx, msg, "No allowed user").await?;
     }
 
     Ok(())
@@ -792,7 +794,7 @@ async fn save_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
     } else {
         "Only allowed users can save the configuration"
     };
-    send_message(ctx, msg.channel_id, &msg_to_send).await?;
+    send_message(ctx, msg, &msg_to_send).await?;
     Ok(())
 }
 
@@ -814,7 +816,7 @@ async fn load_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
         "Only allowed users can load the configuration"
     };
 
-    send_message(ctx, msg.channel_id, &msg_to_send).await?;
+    send_message(ctx, msg, &msg_to_send).await?;
     Ok(())
 }
 
@@ -833,7 +835,7 @@ async fn clear_global_aliases(ctx: &Context, msg: &Message, _args: Args) -> Comm
     } else {
         "Only admin users can clear all the aliases"
     };
-    send_message(ctx, msg.channel_id, msg_to_send).await?;
+    send_message(ctx, msg, msg_to_send).await?;
     Ok(())
 }
 
@@ -852,17 +854,17 @@ async fn clear_users(ctx: &Context, msg: &Message, _args: Args) -> CommandResult
     } else {
         "Only administrator or owner can clear allowed users list"
     };
-    send_message(ctx, msg.channel_id, msg_to_send).await?;
+    send_message(ctx, msg, msg_to_send).await?;
     Ok(())
 }
 
 #[inline]
 pub async fn send_message(
     ctx: &Context,
-    channel_id: ChannelId,
+    orig_msg: &Message,
     msg_to_send: &str,
 ) -> Result<Message, serenity::Error> {
-    match channel_id.say(&ctx.http, msg_to_send).await {
+    match orig_msg.reply_ping(&ctx.http, msg_to_send).await {
         Err(e) => {
             eprintln!("Error sending message: {:?}", e);
             Err(e)

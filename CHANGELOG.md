@@ -1,11 +1,8 @@
-# 0.9.4
-- update [`caith` 3.0.2](https://github.com/Geobert/caith/blob/master/CHANGELOG.md)
-
-# 0.9.3
-- update [`caith` 3.0.1](https://github.com/Geobert/caith/blob/master/CHANGELOG.md)
-
-# 0.9.2
-- update [`caith` 3.0.0](https://github.com/Geobert/caith/blob/master/CHANGELOG.md)
+# 0.10.0-beta1
+- update [`caith` to 3.0.3](https://github.com/Geobert/caith/blob/master/CHANGELOG.md)
+- Use `serenity` future 0.10 version
+- Editing a message trigger the roll as well
+- Use new reply format
 
 # 0.9.1
 - update caith to 2.2.1
