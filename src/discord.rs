@@ -24,7 +24,7 @@ use serenity::{
         channel::{ChannelType, GuildChannel, Message},
         event::MessageUpdateEvent,
         guild::GuildStatus,
-        id::{GuildId, UserId},
+        id::{ChannelId, GuildId, MessageId, UserId},
         prelude::Ready,
         Permissions,
     },
@@ -155,8 +155,45 @@ impl EventHandler for Handler {
                 let data = ctx_clone.data.read().await;
                 data.get::<FrameworkContainer>().unwrap().clone()
             };
+            let id = msg.id.clone();
+            let channel_id = msg.channel_id.clone();
+            let ctx_clone = ctx.clone();
+            // Spawn, can be long if many messages
+            tokio::spawn(
+                async move { strikethrough_previous_reply(ctx_clone, id, channel_id).await },
+            );
             framework.dispatch(ctx, msg).await;
         }
+    }
+}
+
+async fn strikethrough_previous_reply(ctx: Context, ref_msg_id: MessageId, channel_id: ChannelId) {
+    match channel_id
+        .messages(&ctx.http, |retriever| retriever.after(&ref_msg_id))
+        .await
+    {
+        Ok(mut messages) if !messages.is_empty() => {
+            // We are guarded against empty vec, unwrap is safe
+            let last_id = messages.first().unwrap().id.clone();
+            if let Some(msg_to_edit) = messages.iter_mut().rev().find(|m| {
+                if let Some(ref_msg) = &m.referenced_message {
+                    // Do not strikethrough a message twice
+                    ref_msg.id == ref_msg_id && !m.content.starts_with("~~") && m.id != last_id
+                } else {
+                    false
+                }
+            }) {
+                let content = msg_to_edit.content.clone();
+                if let Err(e) = msg_to_edit
+                    .edit(&ctx, |new_msg| new_msg.content(&format!("~~{}~~", content)))
+                    .await
+                {
+                    eprintln!("Error while editing: {}", e);
+                }
+            }
+        }
+        Err(e) => eprintln!("{}", e),
+        _ => {}
     }
 }
 

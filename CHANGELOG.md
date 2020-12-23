@@ -1,3 +1,6 @@
+# 0.10.0-beta2
+- Strikethrough previous answer on a roll edit
+
 # 0.10.0-beta1
 - update [`caith` to 3.0.3](https://github.com/Geobert/caith/blob/master/CHANGELOG.md)
 - Use `serenity` future 0.10 version
