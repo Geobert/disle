@@ -1,3 +1,6 @@
+# 0.10.0-beta3
+- Fix strikethrough
+
 # 0.10.0-beta2
 - Strikethrough previous answer on a roll edit
 

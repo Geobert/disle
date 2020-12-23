@@ -174,11 +174,17 @@ async fn strikethrough_previous_reply(ctx: Context, ref_msg_id: MessageId, chann
     {
         Ok(mut messages) if !messages.is_empty() => {
             // We are guarded against empty vec, unwrap is safe
-            let last_id = messages.first().unwrap().id.clone();
+            let last_id = if messages.len() > 1 {
+                Some(messages.first().unwrap().id.clone())
+            } else {
+                None
+            };
             if let Some(msg_to_edit) = messages.iter_mut().rev().find(|m| {
                 if let Some(ref_msg) = &m.referenced_message {
                     // Do not strikethrough a message twice
-                    ref_msg.id == ref_msg_id && !m.content.starts_with("~~") && m.id != last_id
+                    ref_msg.id == ref_msg_id
+                        && !m.content.starts_with("~~")
+                        && last_id.map_or_else(|| true, |the_id| m.id != the_id)
                 } else {
                     false
                 }
