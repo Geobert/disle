@@ -158,11 +158,8 @@ impl EventHandler for Handler {
             let id = msg.id.clone();
             let channel_id = msg.channel_id.clone();
             let ctx_clone = ctx.clone();
-            // Spawn, can be long if many messages
-            tokio::spawn(
-                async move { strikethrough_previous_reply(ctx_clone, id, channel_id).await },
-            );
             framework.dispatch(ctx, msg).await;
+            strikethrough_previous_reply(ctx_clone, id, channel_id).await;
         }
     }
 }
