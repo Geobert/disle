@@ -1,6 +1,6 @@
 [package]
 name = "disle"
-version = "0.10.0-beta3"
+version = "0.10.0-beta4"
 authors = ["Geobert Quach <geobert@protonmail.com>"]
 edition = "2018"
 description = "A Discord dice roller bot with alias management"
