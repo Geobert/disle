@@ -1,3 +1,6 @@
+# 0.10.0-beta4
+- update [`caith` to 3.1.0](https://github.com/Geobert/caith/blob/master/CHANGELOG.md)
+
 # 0.10.0-beta3
 - Fix strikethrough
 

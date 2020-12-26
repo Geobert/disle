@@ -13,7 +13,7 @@ readme = "README.md"
 
 [dependencies]
 tokio = { version = "0.2.23", features = ["macros", "sync", "signal", "rt-threaded"] }
-caith = "3.0.3"
+caith = "3.1.0"
 # caith = { path = "../caith" }
 ron = "0.6.2"
 serde = { version = "1.0.117", features = ["serde_derive"] }
