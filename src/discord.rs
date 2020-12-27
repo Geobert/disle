@@ -368,9 +368,10 @@ async fn react_to(ctx: &Context, msg: &Message, crit: Option<HashSet<Critic>>) -
 ///     d#  : Dropping the lowest (lowercase "d")
 ///     r#  : Reroll if <= value
 ///     ir# : Indefinite reroll if <= value
-///     
+///
 ///     Target:
 ///     t#  : Target value to be a success
+///     tt# : minimum value to count as two successes
 ///
 ///     Failure:
 ///     f#  : Value under which it is count as failure
