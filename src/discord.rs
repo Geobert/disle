@@ -371,6 +371,7 @@ async fn react_to(ctx: &Context, msg: &Message, crit: Option<HashSet<Critic>>) -
 ///
 ///     Target:
 ///     t#  : Target value to be a success
+///     tt# : minimum value to count as two successes
 ///
 ///     Failure:
 ///     f#  : Value under which it is count as failure
