@@ -85,7 +85,7 @@ async fn is_allowed(ctx: &Context, msg: &Message) -> bool {
     }
 }
 
-fn chat_id(msg: &Message) -> u64 {
+pub(crate) fn chat_id(msg: &Message) -> u64 {
     match msg.guild_id {
         Some(guild_id) => *guild_id.as_u64(),
         None => *msg.channel_id.as_u64(),

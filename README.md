@@ -53,6 +53,17 @@ Reason:
 
 See the underlying crate `caith`'s [Readme for the full syntax](https://github.com/Geobert/caith/blob/master/README.md)
 
+## Special interpretation
+
+Some games have special rules to interpret the dices and Dìsle supports some:
+- OVA: The Anime Role-Playing Game result
+- Les chroniques de l'étrange
+
+## Cards
+
+You can now use a deck of cards. In a server channel:
+- create a deck of cards: `/newdeck or /nd <nb_of_joker>
+
 ## Aliases
 
 Aliases can be set per channel and per user. Basically, they store some expression and can

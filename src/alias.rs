@@ -1,7 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt::Display,
-    iter::FromIterator,
     ops::{Deref, DerefMut},
     path::PathBuf,
 };
@@ -32,12 +31,6 @@ impl Data {
 
 // room_id, Data
 pub struct AllData(HashMap<u64, Data>);
-
-impl AllData {
-    pub fn new() -> Self {
-        AllData(HashMap::new())
-    }
-}
 
 impl Deref for AllData {
     type Target = HashMap<u64, Data>;
@@ -143,6 +136,10 @@ fn collect_expanded(expanded: Vec<SplitPart>) -> Result<String, String> {
 }
 
 impl AllData {
+    pub fn new() -> Self {
+        AllData(HashMap::new())
+    }
+
     fn expand_alias(&self, cmd: &str, chat_id: u64, user_id: u64) -> Result<String, String> {
         let mut alias_seen = HashSet::new();
         collect_expanded(self.alias_expansion(cmd, chat_id, user_id, &mut alias_seen))
@@ -425,7 +422,7 @@ impl AllData {
 
     pub fn list_allowed_users(&self, chat_id: u64) -> Vec<u64> {
         match self.get(&chat_id) {
-            Some(data) => Vec::from_iter(data.allowed.iter().copied()),
+            Some(data) => data.allowed.iter().copied().collect(),
             None => vec![],
         }
     }

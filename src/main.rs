@@ -12,7 +12,10 @@ async fn main() {
     discord::run().await;
 }
 
-fn search_crit_simple(res: &SingleRollResult, set: &mut HashSet<Critic>) -> Result<(), ()> {
+fn search_crit_simple(
+    res: &SingleRollResult,
+    set: &mut HashSet<Critic>,
+) -> Result<(), serenity::Error> {
     let mut has_roll = false;
     for r in res.get_history().iter() {
         match r {
@@ -37,11 +40,11 @@ fn search_crit_simple(res: &SingleRollResult, set: &mut HashSet<Critic>) -> Resu
     if has_roll {
         Ok(())
     } else {
-        Err(())
+        Err(serenity::Error::Other("No roll"))
     }
 }
 
-pub fn search_crit(res: &RollResult) -> Result<HashSet<Critic>, ()> {
+pub fn search_crit(res: &RollResult) -> Result<HashSet<Critic>, serenity::Error> {
     let mut set = HashSet::new();
     match res.get_result() {
         RollResultType::Single(res) => {
@@ -60,7 +63,7 @@ pub fn search_crit(res: &RollResult) -> Result<HashSet<Critic>, ()> {
     }
 }
 
-pub fn process_crit(set: Result<HashSet<Critic>, ()>) -> Option<HashSet<Critic>> {
+pub fn process_crit(set: Result<HashSet<Critic>, serenity::Error>) -> Option<HashSet<Critic>> {
     if let Ok(set) = set {
         if set.is_empty() {
             None
@@ -72,4 +75,10 @@ pub fn process_crit(set: Result<HashSet<Critic>, ()>) -> Option<HashSet<Critic>>
         h.insert(Critic::No);
         Some(h)
     }
+}
+
+pub enum Interpreter<'a> {
+    None,
+    Ova(i32),
+    Cde(&'a str),
 }

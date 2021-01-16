@@ -1,6 +1,6 @@
 [package]
 name = "disle"
-version = "0.10.0-beta4"
+version = "0.10.0"
 authors = ["Geobert Quach <geobert@protonmail.com>"]
 edition = "2018"
 description = "A Discord dice roller bot with alias management"
@@ -12,16 +12,18 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "0.2.23", features = ["macros", "sync", "signal", "rt-threaded"] }
-caith = "3.1.0"
-# caith = { path = "../caith" }
-ron = "0.6.2"
-serde = { version = "1.0.117", features = ["serde_derive"] }
-futures = "0.3.7"
-#serenity = { version = "0.9.3", optional = true }
-# TODO change that for version 0.10 when published
-serenity = { git = "https://github.com/serenity-rs/serenity", rev = "52f9dca368853f07ef580e3528a82452d4f9e7fa", optional = true }
+tokio = { version = "1.0.2", features = ["macros", "signal", "rt-multi-thread"] }
+caith = { version = "4.0.0", features = ["ova", "cde", "cards"] }
+# caith = { path = "../caith", features = ["ova", "cde", "cards"] }
+ron = "0.6.4"
+serde = { version = "1.0.119", features = ["serde_derive"] }
+futures = "0.3.12"
+
+[dependencies.serenity] 
+version = "0.10.2"
+optional = true
 
 [features]
-default = ["discord"]
+default = ["discord", "cards"]
 discord = ["serenity"]
+cards = []

@@ -21,7 +21,7 @@ use crate::Interpreter;
 use super::{alias_cmd::parse_alias, err_message, send_message};
 
 #[group]
-#[commands(roll, reroll, reroll_dice)]
+#[commands(roll, reroll, reroll_dice, disle)]
 struct Roll;
 
 pub(crate) struct RerollTable;
@@ -78,6 +78,13 @@ async fn react_to(ctx: &Context, msg: &Message, crit: Option<HashSet<Critic>>) -
             }
         }
     }
+    Ok(())
+}
+
+#[command]
+/// Return the running version of Dìsle
+async fn disle(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
+    super::send_message(ctx, msg, std::env!("CARGO_PKG_VERSION")).await?;
     Ok(())
 }
 

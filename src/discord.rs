@@ -34,8 +34,14 @@ use tokio::signal::unix::{signal, SignalKind};
 
 use crate::alias;
 
+#[cfg(feature = "cards")]
+mod cards_cmd;
+
 mod alias_cmd;
 mod roll_cmd;
+
+#[cfg(feature = "cards")]
+use cards_cmd::*;
 
 use alias_cmd::*;
 use roll_cmd::*;
@@ -93,8 +99,8 @@ impl EventHandler for Handler {
                 let data = ctx_clone.data.read().await;
                 data.get::<FrameworkContainer>().unwrap().clone()
             };
-            let id = msg.id.clone();
-            let channel_id = msg.channel_id.clone();
+            let id = msg.id;
+            let channel_id = msg.channel_id;
             let ctx_clone = ctx.clone();
             framework.dispatch(ctx, msg).await;
             strikethrough_previous_reply(ctx_clone, id, channel_id).await;
@@ -110,7 +116,7 @@ async fn strikethrough_previous_reply(ctx: Context, ref_msg_id: MessageId, chann
         Ok(mut messages) if !messages.is_empty() => {
             // We are guarded against empty vec, unwrap is safe
             let last_id = if messages.len() > 1 {
-                Some(messages.first().unwrap().id.clone())
+                Some(messages.first().unwrap().id)
             } else {
                 None
             };
@@ -214,20 +220,23 @@ pub async fn run() {
         Err(why) => panic!("Could not access application info: {:?}", why),
     };
 
-    let framework = Arc::new(Box::new(
-        StandardFramework::new()
-            .configure(|c| {
-                c.with_whitespace(true)
-                    .on_mention(Some(bot_id))
-                    .prefix("/")
-                    .delimiters(vec![" "])
-                    .owners(owners)
-            })
-            .on_dispatch_error(dispatch_error)
-            .help(&MY_HELP)
-            .group(&ROLL_GROUP)
-            .group(&ALIAS_GROUP),
-    ) as Box<dyn Framework + Send + Sync + 'static>);
+    let std_framework = StandardFramework::new()
+        .configure(|c| {
+            c.with_whitespace(true)
+                .on_mention(Some(bot_id))
+                .prefix("/")
+                .delimiters(vec![" "])
+                .owners(owners)
+        })
+        .on_dispatch_error(dispatch_error)
+        .help(&MY_HELP)
+        .group(&ROLL_GROUP)
+        .group(&ALIAS_GROUP);
+
+    #[cfg(feature = "cards")]
+    let std_framework = std_framework.group(&CARDS_GROUP);
+
+    let framework = Arc::new(Box::new(std_framework) as Box<dyn Framework + Send + Sync + 'static>);
 
     let framework2 = framework.clone();
 
@@ -244,6 +253,11 @@ pub async fn run() {
         data.insert::<RerollTable>(HashMap::new());
         data.insert::<Aliases>(alias::AllData::new());
         data.insert::<FrameworkContainer>(framework);
+        #[cfg(feature = "cards")]
+        {
+            data.insert::<cards_cmd::Decks>(cards_cmd::AllDecks::new());
+            data.insert::<cards_cmd::PrivateDraws>(cards_cmd::AllPrivateDraws::new());
+        }
     }
 
     // save for exit bot saving

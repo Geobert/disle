@@ -1,3 +1,25 @@
+# 0.10.0
+- update [`caith` to 4.0.0](https://github.com/Geobert/caith/blob/master/CHANGELOG.md)
+- can interpret roll result according to "Les chroniques de l'étrange":
+```
+/r cde(5, fire)
+
+Success (㊋ fire): 2
+Lucky dice (㊏ earth): 1
+Ill dice (㊍ wood): 0
+Loksyu (㊎ metal): 1 ● Yin / 1 ○ Yang
+Tin Ji (㊌ water): 0
+History: [8, 7, 5, 3, 2]
+```
+- Can draw cards: 
+```
+/draw 
+4♤
+
+/draw 4
+K♤, 2♡, 8♤, 7♤
+```
+
 # 0.10.0-beta4
 - update [`caith` to 3.1.0](https://github.com/Geobert/caith/blob/master/CHANGELOG.md)
 
