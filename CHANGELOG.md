@@ -19,6 +19,7 @@ History: [8, 7, 5, 3, 2]
 /draw 4
 K♤, 2♡, 8♤, 7♤
 ```
+- NEW: `/disle` to get current version
 
 # 0.10.0-beta4
 - update [`caith` to 3.1.0](https://github.com/Geobert/caith/blob/master/CHANGELOG.md)
