@@ -67,6 +67,14 @@ impl AllPrivateDraws {
     pub fn new() -> Self {
         AllPrivateDraws(HashMap::new())
     }
+
+    pub fn clear_for_room(&mut self, room_id: &str) {
+        self.0.iter_mut().for_each(|(k, v)| {
+            if k.ends_with(room_id) {
+                v.clear()
+            }
+        });
+    }
 }
 
 #[group]
@@ -128,24 +136,40 @@ async fn newdeck(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult 
         }
     };
 
-    let mut data = ctx.data.write().await;
-    let decks = data.get_mut::<Decks>().unwrap();
-    match decks.get_mut(&chat_id(&msg).to_string()) {
-        Some(deck) => deck.reset(number as usize),
-        None => {
-            decks.insert(
-                chat_id(&msg).to_string(),
-                caith::cards::Deck::new(number as usize),
-            );
+    let had_deck = {
+        let mut data = ctx.data.write().await;
+        let decks = data.get_mut::<Decks>().unwrap();
+        match decks.get_mut(&chat_id(&msg).to_string()) {
+            Some(deck) => {
+                deck.reset(number as usize);
+                true
+            }
+            None => {
+                decks.insert(
+                    chat_id(&msg).to_string(),
+                    caith::cards::Deck::new(number as usize),
+                );
+                false
+            }
         }
-    }
+    };
 
-    super::send_message(
-        ctx,
-        msg,
-        &format!("New deck created with {} jokers", number),
-    )
-    .await?;
+    let msg_to_send = if had_deck {
+        let channel_id = msg.channel(&ctx.cache).await.unwrap().to_string();
+        do_on_private_draw(ctx, msg, |privates, _id| {
+            privates.clear_for_room(&channel_id);
+            Ok(None)
+        })
+        .await?;
+        format!(
+            "New deck created with {} jokers and all private draws were cleared.",
+            number
+        )
+    } else {
+        format!("New deck created with {} jokers", number)
+    };
+
+    super::send_message(ctx, msg, &msg_to_send).await?;
     Ok(())
 }
 
@@ -200,7 +224,6 @@ async fn draw(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         let msg_to_send = print_vec_of_cards(&drawn_cards);
         if secret {
             do_on_private_draw(ctx, msg, |privates, id| {
-                println!("save secret");
                 privates
                     .entry(id)
                     .and_modify(|v| v.append(&mut drawn_cards))

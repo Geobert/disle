@@ -1,3 +1,6 @@
+# 1.0.1
+- on newdeck, clear all private draws from the current room's deck
+
 # 1.0.0
 - update [`caith` to 4.1.0](https://github.com/Geobert/caith/blob/master/CHANGELOG.md)
 
