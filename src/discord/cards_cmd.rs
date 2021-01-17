@@ -74,7 +74,8 @@ impl AllPrivateDraws {
 struct Cards;
 
 #[command]
-/// Query how many cards left
+/// Query how many cards left in the deck.
+///
 async fn remain(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
     let data = ctx.data.read().await;
     let decks = data.get::<Decks>().unwrap();
@@ -91,7 +92,8 @@ async fn remain(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
 
 #[command]
 #[aliases("sh")]
-/// Shuffle the deck
+/// Shuffle the deck.
+///
 async fn shuffle(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
     let mut data = ctx.data.write().await;
     let decks = data.get_mut::<Decks>().unwrap();
@@ -111,7 +113,8 @@ async fn shuffle(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
 
 #[command]
 #[aliases("nd")]
-/// Create a new deck with the specified number of jokers
+/// Create a new deck with the specified number of jokers.
+///
 async fn newdeck(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let number = if args.is_empty() {
         0
@@ -149,6 +152,7 @@ async fn newdeck(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult 
 #[command]
 #[aliases("rev")]
 /// Reveal your secret draw
+///
 async fn reveal(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
     do_on_private_draw(ctx, msg, |privates, id| match privates.get(&id) {
         Some(privates) if !privates.is_empty() => Ok(Some(print_vec_of_cards(privates))),
@@ -160,7 +164,8 @@ async fn reveal(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
 
 #[command]
 #[aliases("dis")]
-/// Discard your secret draw
+/// Discard your secret draw.
+///
 async fn discard(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
     do_on_private_draw(ctx, msg, |privates, id| match privates.get_mut(&id) {
         Some(privates) if !privates.is_empty() => {
@@ -175,7 +180,13 @@ async fn discard(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
 
 #[command]
 #[aliases("d")]
-/// Draw the specified number of cards
+/// Draw the specified number of cards.
+/// Add `s` to make the draw secret: the draw will be send as a private message.
+///
+/// Ex:
+/// `/draw 4` will draw 4 cards
+/// `/d 4s` will draw 4 cards secretly
+///
 async fn draw(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let (nb, reason, secret) = process_draw_args(ctx, msg, &args).await?;
 

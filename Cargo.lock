@@ -119,13 +119,13 @@ checksum = "b700ce4376041dcd0a327fd0097c41095743c4c8af8887265942faf1100bd040"
 
 [[package]]
 name = "caith"
-version = "4.0.0"
+version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "affbe4b05d6b109b704ffb2a22533c00554e603c6dd8654ffdddb1b6566225b8"
+checksum = "0a865fda92752cca18432dead5779cef82a7fafba7f14efc6714c33b8449d91c"
 dependencies = [
  "pest",
  "pest_derive",
- "rand 0.8.1",
+ "rand 0.8.2",
 ]
 
 [[package]]
@@ -206,7 +206,7 @@ dependencies = [
 
 [[package]]
 name = "disle"
-version = "0.10.0"
+version = "1.0.0"
 dependencies = [
  "caith",
  "futures",
@@ -849,9 +849,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.8.1"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c24fcd450d3fa2b592732565aa4f17a27a61c65ece4726353e000939b0edee34"
+checksum = "18519b42a40024d661e1714153e9ad0c3de27cd495760ceb09710920f1098b1e"
 dependencies = [
  "libc",
  "rand_chacha 0.3.0",

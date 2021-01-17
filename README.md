@@ -42,7 +42,9 @@ r#  : Reroll if <= value
 ir# : Indefinite reroll if <= value
     
 Target:
-t#  : Target value to be a success
+t#  : Minimum value to be a success
+tt# : Minimum value to be double success
+t[x, y, z, …]: Value to consider as success
 
 Failure: 
 f#  : Value under which it is count as failure
@@ -53,16 +55,26 @@ Reason:
 
 See the underlying crate `caith`'s [Readme for the full syntax](https://github.com/Geobert/caith/blob/master/README.md)
 
-## Special interpretation
+## Specific game support
 
 Some games have special rules to interpret the dices and Dìsle supports some:
-- OVA: The Anime Role-Playing Game result
-- Les chroniques de l'étrange
+- "OVA: The Anime Role-Playing Game" result (`/r ova(<number>)`, ex: `/r ova(4)`)
+- "Hong-Kong : Les Chroniques de l'Étrange" (`/r cde(<number of dice>, <element>)`, 
+  ex: `/r cde(5, fire)`)
+  - PS in French: Vu que le jeu est Français, on peut écrire les éléments en FR aussi, le
+    résultat sera en Français !
 
 ## Cards
 
 You can now use a deck of cards. In a server channel:
-- create a deck of cards: `/newdeck or /nd <nb_of_joker>
+
+- create a shuffled deck of cards: `/newdeck or /nd <nb_of_joker>`
+- draw cards from the deck: `/draw or /d <nb_of_cards>` 
+- add `s` to draw cards secretly: `/d <nb_of_cards> s`
+- reveal your secret draw: `/reveal or /rev`
+- discard your secret draw: `/discard or /dis`
+- shuffle the deck again: `/shuffle or /sh`
+- query how many cards left in the deck: `/remain`
 
 ## Aliases
 

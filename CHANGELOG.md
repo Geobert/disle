@@ -1,3 +1,6 @@
+# 1.0.0
+- update [`caith` to 4.1.0](https://github.com/Geobert/caith/blob/master/CHANGELOG.md)
+
 # 0.10.0
 - update [`caith` to 4.0.0](https://github.com/Geobert/caith/blob/master/CHANGELOG.md)
 - can interpret roll result according to "Les chroniques de l'étrange":
@@ -13,6 +16,9 @@ History: [8, 7, 5, 3, 2]
 ```
 - Can draw cards: 
 ```
+/newdeck
+New deck created with 0 jokers
+
 /draw 
 4♤
 
