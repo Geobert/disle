@@ -1,3 +1,6 @@
+# 1.1.1
+- Don't hoist "Dìsle Alias" role
+
 # 1.1.0
 - Removed old global alias management permission
 - Global alias management permission tied to "Dìsle Alias" role created automatically

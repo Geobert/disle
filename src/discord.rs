@@ -76,7 +76,7 @@ impl EventHandler for Handler {
                             let guild = ctx.cache.guild(guild_id).await.unwrap();
                             match guild
                                 .create_role(&ctx.http, |r| {
-                                    r.hoist(true).mentionable(false).name(ALIAS_ROLE_NAME)
+                                    r.hoist(false).mentionable(false).name(ALIAS_ROLE_NAME)
                                 })
                                 .await
                             {
