@@ -108,20 +108,8 @@ You can delete a global alias:
 Global aliases are turned uppercase in order to distinguish them from user's aliases when
 using them.
 
-Only the server's owner, user with `Administrator` permission and specifically allowed
-users can manage global aliases.
-
-To allow user to tamper with the global aliases:
-
-```
-/alias allow @User<Tab> @User2<Tab>
-/alias disallow @User<Tab> @User2<Tab>
-```
-
-It is important to use the `Tab` key to complete the user to get the mention.
-
-Once in the list, the user can add/delete global aliases without having Administrator
-permission.
+Only specifically allowed users can manage global aliases. A dedicated role "Dìsle Alias"
+is created and any user member of this role can edit global aliases.
 
 ### User's Aliases
 

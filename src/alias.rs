@@ -13,8 +13,6 @@ const DIR_NAME: &str = ".disle";
 pub struct Data {
     // alias, command
     pub global_aliases: HashMap<String, String>,
-    // user id
-    pub allowed: HashSet<u64>,
     // user id, map of aliases (alias, command)
     pub users_aliases: HashMap<u64, HashMap<String, String>>,
 }
@@ -23,7 +21,6 @@ impl Data {
     fn new() -> Self {
         Self {
             global_aliases: HashMap::new(),
-            allowed: HashSet::new(),
             users_aliases: HashMap::new(),
         }
     }
@@ -408,30 +405,6 @@ impl AllData {
             ),
             None => (vec![], vec![]),
         }
-    }
-
-    pub fn allow_user(&mut self, user: u64, chat_id: u64) {
-        let data = self.entry(chat_id).or_insert_with(Data::new);
-        data.allowed.insert(user);
-    }
-
-    pub fn disallow_user(&mut self, user: u64, chat_id: u64) {
-        let data = self.entry(chat_id).or_insert_with(Data::new);
-        data.allowed.remove(&user);
-    }
-
-    pub fn list_allowed_users(&self, chat_id: u64) -> Vec<u64> {
-        match self.get(&chat_id) {
-            Some(data) => data.allowed.iter().copied().collect(),
-            None => vec![],
-        }
-    }
-
-    pub fn clear_users(&mut self, chat_id: u64) -> &'static str {
-        if let Some(data) = self.get_mut(&chat_id) {
-            data.allowed.clear();
-        }
-        "Users cleared. You can still undo this with a `load` until a `save` or a bot reboot."
     }
 
     pub fn clear_aliases(&mut self, chat_id: u64) -> &'static str {

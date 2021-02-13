@@ -21,7 +21,6 @@ use serenity::{
     model::{
         channel::{ChannelType, GuildChannel, Message},
         event::MessageUpdateEvent,
-        guild::GuildStatus,
         id::{ChannelId, GuildId, MessageId, UserId},
         prelude::Ready,
     },
@@ -53,22 +52,48 @@ impl TypeMapKey for FrameworkContainer {
 
 struct Handler;
 
+const ALIAS_ROLE_NAME: &str = "Dìsle Alias";
+
 #[async_trait]
 impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, ready: Ready) {
         println!("{} is connected!", ready.user.name);
         for guild in ready.guilds {
-            let guild_id = match guild {
-                GuildStatus::OnlinePartialGuild(g) => g.id,
-                GuildStatus::OnlineGuild(g) => g.id,
-                GuildStatus::Offline(g) => g.id,
-                _ => GuildId(0),
-            };
+            let guild_id = guild.id();
             if guild_id != GuildId(0) {
-                let mut data = ctx.data.write().await;
-                let all_data = data.get_mut::<Aliases>().unwrap();
-                if let Err(e) = all_data.load_alias_data(*guild_id.as_u64()) {
-                    eprintln!("{}", e);
+                {
+                    let mut data = ctx.data.write().await;
+                    let all_data = data.get_mut::<Aliases>().unwrap();
+                    if let Err(e) = all_data.load_alias_data(*guild_id.as_u64()) {
+                        eprintln!("Error loading aliases: {}", e);
+                    }
+                }
+                let roles = ctx.cache.guild_roles(guild_id).await;
+                if let Some(roles) = roles {
+                    match roles.iter().find(|(_, v)| v.name == ALIAS_ROLE_NAME) {
+                        Some((id, _)) => {
+                            let mut data = ctx.data.write().await;
+                            let mgr_role = data.get_mut::<AliasMgrRole>().unwrap();
+                            mgr_role.insert(guild_id, *id);
+                        }
+                        None => {
+                            let guild = ctx.cache.guild(guild_id).await.unwrap();
+                            match guild
+                                .create_role(&ctx.http, |r| {
+                                    r.hoist(true).mentionable(false).name(ALIAS_ROLE_NAME)
+                                })
+                                .await
+                            {
+                                Ok(role) => {
+                                    println!("Role created");
+                                    let mut data = ctx.data.write().await;
+                                    let mgr_role = data.get_mut::<AliasMgrRole>().unwrap();
+                                    mgr_role.insert(guild_id, role.id);
+                                }
+                                Err(e) => eprintln!("Error creating role: {}", e),
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -253,6 +278,7 @@ pub async fn run() {
         data.insert::<RerollTable>(HashMap::new());
         data.insert::<Aliases>(alias::AllData::new());
         data.insert::<FrameworkContainer>(framework);
+        data.insert::<AliasMgrRole>(HashMap::new());
         #[cfg(feature = "cards")]
         {
             data.insert::<cards_cmd::Decks>(cards_cmd::AllDecks::new());
