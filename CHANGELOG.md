@@ -3,7 +3,8 @@
 - Global alias management permission tied to "Dìsle Alias" role created automatically
 - Fix: If a message didn't trigger a roll and was edited to trigger a roll, the result was
   strikethrough
-- 
+- update [`caith` to 4.1.1](https://github.com/Geobert/caith/blob/master/CHANGELOG.md) 
+
 # 1.0.1
 - on newdeck, clear all private draws from the current room's deck
 
