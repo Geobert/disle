@@ -9,7 +9,6 @@ use serenity::{
     model::{
         channel::Message,
         id::{GuildId, RoleId},
-        Permissions,
     },
     prelude::TypeMapKey,
 };
@@ -48,38 +47,6 @@ impl TypeMapKey for InitDMTable {
     clear_global_aliases
 )]
 struct Alias;
-
-// async fn is_owner(ctx: &Context, msg: &Message) -> bool {
-//     if let Some(guild_id) = msg.guild_id {
-//         ctx.cache
-//             .guild_field(guild_id, |guild| msg.author.id == guild.owner_id)
-//             .await
-//             .unwrap_or(false)
-//     } else {
-//         false
-//     }
-// }
-
-// async fn is_admin(ctx: &Context, msg: &Message) -> bool {
-//     if let Some(member) = &msg.member {
-//         for role in &member.roles {
-//             if role
-//                 .to_role_cached(&ctx.cache)
-//                 .await
-//                 .map_or(false, |r| r.has_permission(Permissions::ADMINISTRATOR))
-//             {
-//                 return true;
-//             }
-//         }
-//         false
-//     } else {
-//         true // not in a chatroom = direct message, no role, allow all
-//     }
-// }
-
-// async fn is_super_user(ctx: &Context, msg: &Message) -> bool {
-//     is_owner(ctx, msg).await || is_admin(ctx, msg).await
-// }
 
 async fn is_allowed(ctx: &Context, msg: &Message) -> bool {
     let data = ctx.data.read().await;
