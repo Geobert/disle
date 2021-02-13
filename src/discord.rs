@@ -1,8 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    env,
-    sync::Arc,
-};
+use std::{collections::{HashMap, HashSet}, env, sync::Arc};
 
 use futures::future::FutureExt;
 
@@ -138,19 +134,15 @@ async fn strikethrough_previous_reply(ctx: Context, ref_msg_id: MessageId, chann
         .messages(&ctx.http, |retriever| retriever.after(&ref_msg_id))
         .await
     {
-        Ok(mut messages) if !messages.is_empty() => {
-            // We are guarded against empty vec, unwrap is safe
-            let last_id = if messages.len() > 1 {
-                Some(messages.first().unwrap().id)
-            } else {
-                None
-            };
+        // messages.len() == 1 means that the edited message didn't trigger a roll, no need to
+        // strikethrough
+        Ok(mut messages) if messages.len() > 1 => {
             if let Some(msg_to_edit) = messages.iter_mut().rev().find(|m| {
+                // search for message that answered the edited message
                 if let Some(ref_msg) = &m.referenced_message {
+                    ref_msg.id == ref_msg_id && 
                     // Do not strikethrough a message twice
-                    ref_msg.id == ref_msg_id
-                        && !m.content.starts_with("~~")
-                        && last_id.map_or_else(|| true, |the_id| m.id != the_id)
+                    !m.content.starts_with("~~") 
                 } else {
                     false
                 }

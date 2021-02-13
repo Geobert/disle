@@ -1,3 +1,9 @@
+# 1.1.0
+- Removed old global alias management permission
+- Global alias management permission tied to "Dìsle Alias" role created automatically
+- Fix: If a message didn't trigger a roll and was edited to trigger a roll, the result was
+  strikethrough
+- 
 # 1.0.1
 - on newdeck, clear all private draws from the current room's deck
 
