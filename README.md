@@ -14,10 +14,13 @@ You need to host the bot yourself.
 - Create a bot
 - On your bot server, set an environment variable named `DISCORD_TOKEN` with the bot's
   token.
-- Run the bot
-- In `https://discordapp.com/oauth2/authorize?client_id=CLIENTID&scope=bot`, replace
-  CLIENTID with the value of your application Client ID (in "General Information).
-- Go the this modified URL and allow the bot to your Discord's server.
+- Download the bot for your server (Linux and Windows binaries provided in release section)
+- Run the bot:
+    - Open a console, go to the bot directory and run `./disle` 
+    - You should get "Bot running, quit with Ctrl-C. Disle-Dev is connected!"
+- Replace `CLIENTID` with the value of your application Client ID (in "General Information) in: 
+ `https://discordapp.com/oauth2/authorize?client_id=CLIENTID&permissions=268445760&scope=bot`.
+- Paste this modified URL in your browser and allow the bot to your Discord's server.
 
 # Usage
 ## Help

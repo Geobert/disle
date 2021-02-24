@@ -1,4 +1,7 @@
-on: [push]
+on:
+  push:
+    tags-ignore:
+      - 'v*'
 
 name: CI
 
@@ -11,8 +14,5 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - run: cargo build --release
-      - uses: actions/upload-artifact@v2
-        with:
-          name: bin
-          path: target/release/disle
+      - run: cargo test --release && cargo build --release
+      
