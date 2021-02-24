@@ -303,7 +303,7 @@ pub async fn run() {
         let mut stream = signal(SignalKind::terminate()).expect("Error on getting sigterm stream");
         stream.recv().await;
         println!("Stoping…");
-        let mut data = data.read().await;
+        let data = data.read().await;
         let all_data = data.get::<Aliases>().unwrap();
         all_data.save_all();
     };
