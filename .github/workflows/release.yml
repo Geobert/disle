@@ -32,14 +32,16 @@ jobs:
             *-pc-windows-*) EXE_suffix=".exe" ;;
           esac;
 
-          echo ::set-output name=BIN_NAME::disle${EXE_suffix}
+          tar czf disle-${{ matrix.job.target }}.tgz target/release/disle${EXE_suffix}
+
+          echo ::set-output name=BIN_NAME::disle-${{ matrix.job.target }}.tgz
 
       - name: Release
         id: create_release
         uses: ncipollo/release-action@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          artifacts: target/release/${{ steps.output_dir.outputs.BIN_NAME }}
+          artifacts: ${{ steps.output_dir.outputs.BIN_NAME }}
           allowUpdates: true
           tag: test
         
