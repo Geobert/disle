@@ -1,3 +1,7 @@
+# 1.1.2
+- build windows binaries
+- update installation instruction
+
 # 1.1.1
 - Don't hoist "Dìsle Alias" role
 
