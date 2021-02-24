@@ -30,8 +30,8 @@ jobs:
           case ${{ matrix.job.target }} in
             *-pc-windows-*) EXE_suffix=".exe" ;;
           esac;
-
-          tar czf disle-${{ matrix.job.target }}.tgz target/release/disle${EXE_suffix}
+          cp target/release/disle${EXE_suffix} .
+          tar czf disle-${{ matrix.job.target }}.tgz disle${EXE_suffix}
 
           echo ::set-output name=BIN_NAME::disle-${{ matrix.job.target }}.tgz
 
