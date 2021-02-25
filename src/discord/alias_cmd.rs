@@ -51,18 +51,21 @@ struct Alias;
 async fn is_allowed(ctx: &Context, msg: &Message) -> bool {
     let data = ctx.data.read().await;
     let all_roles = data.get::<AliasMgrRole>().unwrap();
-    if let Some(guild_id) = msg.guild_id {
-        let role_id = all_roles.get(&guild_id).unwrap();
-        match msg.author.has_role(&ctx.http, guild_id, role_id).await {
-            Ok(b) => b,
-            Err(e) => {
-                eprintln!("Error on verifying role: {}", e);
-                false
+    match msg.guild_id {
+        Some(guild_id) => {
+            let role_id = all_roles.get(&guild_id).unwrap();
+            match msg.author.has_role(&ctx.http, guild_id, role_id).await {
+                Ok(b) => b,
+                Err(e) => {
+                    eprintln!("Error on verifying role: {}", e);
+                    false
+                }
             }
         }
-    } else {
-        eprintln!("no guild_id in msg");
-        false
+        None => {
+            eprintln!("no guild_id in msg");
+            false
+        }
     }
 }
 
@@ -80,17 +83,7 @@ pub(crate) async fn parse_alias(
 ) -> Result<String, String> {
     let data = ctx.data.read().await;
     let all_data = data.get::<Aliases>().unwrap();
-    let mut alias_seen = HashSet::new();
-    match all_data.get_alias(
-        args.rest(),
-        chat_id(msg),
-        *msg.author.id.as_u64(),
-        &mut alias_seen,
-    ) {
-        Ok(Some(command)) => Ok(command),
-        Ok(None) => Ok(args.rest().to_string()),
-        Err(e) => Err(e),
-    }
+    all_data.expand_alias(args.rest(), chat_id(msg), *msg.author.id.as_u64(), true)
 }
 
 pub(crate) async fn load_private_alias(ctx: Context, channel_id: u64) {
