@@ -137,7 +137,7 @@ async fn roll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             eprintln!("Error sending message: {:?}", e);
         }
     } else {
-        let (msg_to_send, crit) = parse_args(ctx, msg, args).await;
+        let (msg_to_send, crit) = parse_args_and_roll(ctx, msg, args).await;
 
         let sent_msg = send_message(ctx, msg, &msg_to_send).await?;
         react_to(ctx, &sent_msg, crit).await?;
@@ -145,15 +145,25 @@ async fn roll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     Ok(())
 }
 
-async fn parse_args(ctx: &Context, msg: &Message, args: Args) -> (String, Option<HashSet<Critic>>) {
+async fn parse_args_and_roll(
+    ctx: &Context,
+    msg: &Message,
+    args: Args,
+) -> (String, Option<HashSet<Critic>>) {
     if args.rest().starts_with("help") {
         return (get_roll_help_msg(), None);
     }
 
     let input = parse_alias(ctx, msg, args).await;
-    let input = match input {
+    let (input, has_alias) = match input {
         Ok(input) => input,
         Err(err) => return (err, None),
+    };
+
+    let alias_expansion = if has_alias {
+        Cow::Owned(format!("Alias expansion: `{}`\n", input))
+    } else {
+        Cow::Borrowed("")
     };
 
     match parse_interpreter(&input) {
@@ -186,7 +196,10 @@ async fn parse_args(ctx: &Context, msg: &Message, args: Args) -> (String, Option
                         }
                     },
                 };
-                (format!("{}{}", sep, res), crate::process_crit(crit_set))
+                (
+                    format!("{}{}{}", alias_expansion, sep, res),
+                    crate::process_crit(crit_set),
+                )
             }
             Err(mut msg) => {
                 msg.insert_str(msg.len() - 4, ", or an alias");

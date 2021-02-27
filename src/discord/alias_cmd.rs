@@ -80,7 +80,7 @@ pub(crate) async fn parse_alias(
     ctx: &Context,
     msg: &Message,
     args: Args,
-) -> Result<String, String> {
+) -> Result<(String, bool), String> {
     let data = ctx.data.read().await;
     let all_data = data.get::<Aliases>().unwrap();
     all_data.expand_alias(args.rest(), chat_id(msg), *msg.author.id.as_u64(), true)

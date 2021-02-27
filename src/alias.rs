@@ -199,6 +199,7 @@ fn split_cmd(mut cmd: &str) -> Result<Vec<SplitPart>, String> {
 fn collect_expanded(mut expanded: Vec<SplitPart>) -> Result<String, String> {
     let mut had_error = false;
     expanded.sort();
+
     let s = expanded
         .into_iter()
         .fold(String::new(), |acc, part| match part {
@@ -244,15 +245,23 @@ impl AllData {
         chat_id: u64,
         user_id: u64,
         expand_args: bool,
-    ) -> Result<String, String> {
+    ) -> Result<(String, bool), String> {
         let mut alias_seen = HashSet::new();
-        collect_expanded(self.user_alias_expansion(
-            split_cmd(cmd)?,
-            chat_id,
-            user_id,
-            &mut alias_seen,
-            expand_args,
-        )?)
+        let splitted = split_cmd(cmd)?;
+        let has_alias = splitted.iter().any(|e| match e {
+            SplitPart::Alias(_) => true,
+            _ => false,
+        });
+        Ok((
+            collect_expanded(self.user_alias_expansion(
+                splitted,
+                chat_id,
+                user_id,
+                &mut alias_seen,
+                expand_args,
+            )?)?,
+            has_alias,
+        ))
     }
 
     fn expand_global_alias(
@@ -260,14 +269,22 @@ impl AllData {
         cmd: &str,
         chat_id: u64,
         expand_args: bool,
-    ) -> Result<String, String> {
+    ) -> Result<(String, bool), String> {
         let mut alias_seen = HashSet::new();
-        collect_expanded(self.global_alias_expansion(
-            split_cmd(cmd)?,
-            chat_id,
-            &mut alias_seen,
-            expand_args,
-        )?)
+        let splitted = split_cmd(cmd)?;
+        let has_alias = splitted.iter().any(|e| match e {
+            SplitPart::Alias(_) => true,
+            _ => false,
+        });
+        Ok((
+            collect_expanded(self.global_alias_expansion(
+                splitted,
+                chat_id,
+                &mut alias_seen,
+                expand_args,
+            )?)?,
+            has_alias,
+        ))
     }
 
     fn apply_args(&self, args: &Vec<String>, expansion: String) -> Result<String, String> {
