@@ -1,3 +1,22 @@
+# 1.2.0
+- Support for parameters in alias (see Readme)
+- Alias call must be precede by `$` now
+- If the roll has an alias, print the expansion (avoid cheating ;-) )
+- When using an alias which has a comment, the comment is manage properly so you can add
+  things to the alias call: 
+```
+/alias set init d20 + 6 : initiative
+
+/r $init + 2
+Alias expansion: d20 + 6 + 2 : initiative
+```
+
+Before 1.2.0, the addition was after the comment and hence, ignored:
+```
+/r $init + 2
+Alias expansion: d20 + 6 : initiative + 2
+```
+
 # 1.1.2
 - build windows binaries
 - update installation instruction

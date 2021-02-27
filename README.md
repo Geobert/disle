@@ -167,7 +167,7 @@ aliases and users can refer to either their own aliases or global ones:
 ```
 /alias setg ATT d20
 /alias set att $ATT + 4
-/r att
+/r $att
 > Geob roll: [12] + 4 Result: 16
 ```
 
@@ -177,10 +177,10 @@ Alias expansion occurs on use. So you can do things like that:
 /alias setg ATT d20
 /alias set att_bonus +4
 /alias set att $ATT $att_bonus
-/r att
+/r $att
 > Geob roll: [11] +4 Result: 15
 /alias set att_bonus +5
-/r att
+/r $att
 > Geob roll: [11] +5 Result: 16
 ```
 
