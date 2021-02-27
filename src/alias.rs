@@ -708,7 +708,7 @@ mod tests {
     fn get_global_alias_test() {
         let all = create_all_data();
         assert_eq!(
-            Ok("1d4".to_string()),
+            Ok(("1d4".to_string(), true)),
             all.expand_alias("$GALIAS1", 0, 1, true)
         );
     }
@@ -716,14 +716,17 @@ mod tests {
     #[test]
     fn expand_no_alias() {
         let all = create_all_data();
-        assert_eq!(Ok("1d8".to_string()), all.expand_alias("1d8", 0, 1, true));
+        assert_eq!(
+            Ok(("1d8".to_string(), false)),
+            all.expand_alias("1d8", 0, 1, true)
+        );
     }
 
     #[test]
     fn expand_one_user_alias() {
         let all = create_all_data();
         assert_eq!(
-            Ok("1d10".to_string()),
+            Ok(("1d10".to_string(), true)),
             all.expand_alias("$alias1", 0, 1, true)
         );
     }
@@ -732,7 +735,7 @@ mod tests {
     fn expand_global_alias() {
         let all = create_all_data();
         assert_eq!(
-            Ok("1d4".to_string()),
+            Ok(("1d4".to_string(), true)),
             all.expand_alias("$GALIAS1", 0, 1, true)
         );
     }
@@ -741,7 +744,7 @@ mod tests {
     fn expand_user_and_global_alias() {
         let all = create_all_data();
         assert_eq!(
-            Ok("1d4 + 1d10".to_string()),
+            Ok(("1d4 + 1d10".to_string(), true)),
             all.expand_alias("$GALIAS1 + $alias1", 0, 1, true)
         );
     }
@@ -750,7 +753,7 @@ mod tests {
     fn expand_user_with_global_alias() {
         let all = create_all_data();
         assert_eq!(
-            Ok("1d4 + 1d6".to_string()),
+            Ok(("1d4 + 1d6".to_string(), true)),
             all.expand_alias("$alias2", 0, 1, true)
         );
     }
@@ -790,7 +793,7 @@ mod tests {
             all.set_global_alias("fs".to_string(), "d6! - d6!".to_string(), 0)
         );
         assert_eq!(
-            Ok("d6! - d6!".to_string()),
+            Ok(("d6! - d6!".to_string(), true)),
             all.expand_alias("$FS", 0, 1, true)
         );
     }
@@ -803,7 +806,7 @@ mod tests {
             all.set_global_alias("fs".to_string(), "%1d6!".to_string(), 0)
         );
         assert_eq!(
-            Ok("4d6!".to_string()),
+            Ok(("4d6!".to_string(), true)),
             all.expand_alias("$4|FS", 0, 1, true)
         );
     }
@@ -816,7 +819,7 @@ mod tests {
             all.set_global_alias("fs".to_string(), "%1d6! + %2".to_string(), 0)
         );
         assert_eq!(
-            Ok("4d6! + 5".to_string()),
+            Ok(("4d6! + 5".to_string(), true)),
             all.expand_alias("$4,5|FS", 0, 1, true)
         );
     }
@@ -829,7 +832,7 @@ mod tests {
             all.set_global_alias("fs".to_string(), "%1d6! + %1".to_string(), 0)
         );
         assert_eq!(
-            Ok("4d6! + 4".to_string()),
+            Ok(("4d6! + 4".to_string(), true)),
             all.expand_alias("$4|FS", 0, 1, true)
         );
     }
@@ -851,13 +854,13 @@ mod tests {
     fn get_alias() {
         let mut all = create_all_data();
         assert_eq!(
-            Ok("1d4 + 1d6".to_string()),
+            Ok(("1d4 + 1d6".to_string(), true)),
             all.expand_alias("$alias2", 0, 1, true)
         );
 
         all.set_global_alias("$GALIAS1".to_string(), "4".to_string(), 0);
         assert_eq!(
-            Ok("4 + 1d6".to_string()),
+            Ok(("4 + 1d6".to_string(), true)),
             all.expand_alias("$alias2", 0, 1, true)
         );
 
@@ -871,7 +874,7 @@ mod tests {
             "toto",
         );
         assert_eq!(
-            Ok("d20 +4".to_string()),
+            Ok(("d20 +4".to_string(), true)),
             all.expand_alias("$att", 0, 1, true)
         );
     }
@@ -887,7 +890,7 @@ mod tests {
             "toto",
         );
         assert_eq!(
-            Ok("1d10 : comm1".to_string()),
+            Ok(("1d10 : comm1".to_string(), true)),
             all.expand_alias("$comm1", 0, 1, true)
         );
     }
@@ -910,12 +913,12 @@ mod tests {
             "toto",
         );
         assert_eq!(
-            Ok("1d10 : comm1 : comm2".to_string()),
+            Ok(("1d10 : comm1 : comm2".to_string(), true)),
             all.expand_alias("$comm2", 0, 1, true)
         );
 
         assert_eq!(
-            Ok("1d10 + 2 : comm1 : comm2".to_string()),
+            Ok(("1d10 + 2 : comm1 : comm2".to_string(), true)),
             all.expand_alias("$comm2 + 2", 0, 1, true)
         );
     }

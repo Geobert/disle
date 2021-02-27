@@ -128,6 +128,8 @@ async fn disle(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
 ///     OVA roll:
 ///     positive: `ova(12)` or negative: `ova(-5)`
 ///
+///     Chronique de l'étrange roll: `cde(4, fire)`
+///
 ///     Reason:
 ///     :   : Any text after `:` will be a comment"
 /// ```
