@@ -139,12 +139,13 @@ async fn strikethrough_previous_reply(ctx: Context, ref_msg_id: MessageId, chann
         Ok(mut messages) if messages.len() > 1 => {
             if let Some(msg_to_edit) = messages.iter_mut().rev().find(|m| {
                 // search for message that answered the edited message
-                if let Some(ref_msg) = &m.referenced_message {
-                    ref_msg.id == ref_msg_id && 
-                    // Do not strikethrough a message twice
-                    !m.content.starts_with("~~") 
-                } else {
-                    false
+                match &m.referenced_message {
+                    Some(ref_msg) => {
+                        ref_msg.id == ref_msg_id && 
+                        // Do not strikethrough a message twice
+                        !m.content.starts_with("~~") 
+                    }
+                    None => false,
                 }
             }) {
                 let content = msg_to_edit.content.clone();

@@ -126,6 +126,39 @@ Each user can set their own alias only accessible by them:
 
 Users aliases are turn to lowercase to avoid conflict with global ones.
 
+### Alias Parameters
+
+Since 1.2.0, aliases accept parameters. It is a very crude macro like mechanism so it can
+break easily.
+
+When creating the alias, uses `%<integer>` to refer to a parameter, ex:
+```
+/alias set knight %1d6 t[2,4,6]
+Alias $knight set for user Geob
+```
+
+And to pass parameter:
+```
+/r $4|knight
+Alias expansion: 4d6 t[2,4,6]
+[5, 5, 2, 1] = 1
+```
+
+Parameters are comma separated and the parameters list ends with the pipe character (`|`).
+Example with multiple parameters:
+```
+/alias set two_param %1d6 + %2 : refers to 2 different parameters
+/alias set same_param %1d6 + %1 : refers to the same parameters
+
+/r $1,2|two_param
+Alias expansion: 1d6 + 2
+[5] + 2 = 7
+
+/r $2|same_param
+Alias expansion: 2d6 + 2
+[2, 5] + 2 = 9
+```
+
 ### Aliases Expansion
 
 When setting an alias, you can use aliases. Global aliases can only use other global
