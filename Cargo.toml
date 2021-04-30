@@ -1,6 +1,6 @@
 [package]
 name = "disle"
-version = "1.2.3"
+version = "1.2.4"
 authors = ["Geobert Quach <geobert@protonmail.com>"]
 edition = "2018"
 description = "A Discord dice roller bot with alias management"
@@ -13,7 +13,7 @@ readme = "README.md"
 
 [dependencies]
 tokio = { version = "1.5.0", features = ["macros", "signal", "rt-multi-thread"] }
-caith = { version = "4.2.0", features = ["ova", "cde", "cards"] }
+caith = { version = "4.2.1", features = ["ova", "cde", "cards"] }
 # caith = { path = "../caith", features = ["ova", "cde", "cards"] }
 ron = "0.6.4"
 serde = { version = "1.0.125", features = ["serde_derive"] }
