@@ -87,7 +87,7 @@ struct Cards;
 async fn remain(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
     let data = ctx.data.read().await;
     let decks = data.get::<Decks>().unwrap();
-    let size = match decks.get(&chat_id(&msg).to_string()) {
+    let size = match decks.get(&chat_id(msg).to_string()) {
         Some(deck) => deck.len(),
         None => {
             super::send_message(ctx, msg, "No deck to query: use /newdeck <nb of jokers>").await?;
@@ -105,7 +105,7 @@ async fn remain(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
 async fn shuffle(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
     let mut data = ctx.data.write().await;
     let decks = data.get_mut::<Decks>().unwrap();
-    match decks.get_mut(&chat_id(&msg).to_string()) {
+    match decks.get_mut(&chat_id(msg).to_string()) {
         Some(deck) if !deck.is_empty() => deck.shuffle(),
         Some(_) => {
             super::send_message(ctx, msg, "Deck is empty").await?;
@@ -139,14 +139,14 @@ async fn newdeck(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult 
     let had_deck = {
         let mut data = ctx.data.write().await;
         let decks = data.get_mut::<Decks>().unwrap();
-        match decks.get_mut(&chat_id(&msg).to_string()) {
+        match decks.get_mut(&chat_id(msg).to_string()) {
             Some(deck) => {
                 deck.reset(number as usize);
                 true
             }
             None => {
                 decks.insert(
-                    chat_id(&msg).to_string(),
+                    chat_id(msg).to_string(),
                     caith::cards::Deck::new(number as usize),
                 );
                 false
@@ -293,7 +293,7 @@ where
                     super::send_message(ctx, msg, &msg_to_send).await?;
                 }
                 Err(e) => {
-                    super::send_message(ctx, msg, &e).await?;
+                    super::send_message(ctx, msg, e).await?;
                 }
                 _ => {}
             }
@@ -344,7 +344,7 @@ async fn draw_card(
 ) -> Result<Vec<caith::cards::Card>, serenity::Error> {
     let mut data = ctx.data.write().await;
     let decks = data.get_mut::<Decks>().unwrap();
-    match decks.get_mut(&chat_id(&msg).to_string()) {
+    match decks.get_mut(&chat_id(msg).to_string()) {
         Some(deck) => Ok(deck.draw(nb as usize)),
         None => {
             super::send_message(ctx, msg, "No deck to draw: use /newdeck <nb of jokers>").await?;

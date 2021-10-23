@@ -134,7 +134,7 @@ impl SplitPart {
 }
 
 fn split_alias_args(cmd: &str) -> Result<Alias, String> {
-    match cmd.find("|") {
+    match cmd.find('|') {
         Some(pipe_idx) => {
             if pipe_idx == 0 {
                 return Err("Syntax error, no parameter before `|`".to_string());
@@ -144,7 +144,7 @@ fn split_alias_args(cmd: &str) -> Result<Alias, String> {
             }
             let args = &cmd[..pipe_idx];
             let name = &cmd[pipe_idx + 1..];
-            if name.find("|").is_some() {
+            if name.find('|').is_some() {
                 return Err("Syntax error, can't have another `|`".to_string());
             }
             let args: Vec<String> = args.split(',').map(|s| s.to_owned()).collect();
@@ -248,10 +248,7 @@ impl AllData {
     ) -> Result<(String, bool), String> {
         let mut alias_seen = HashSet::new();
         let splitted = split_cmd(cmd)?;
-        let has_alias = splitted.iter().any(|e| match e {
-            SplitPart::Alias(_) => true,
-            _ => false,
-        });
+        let has_alias = splitted.iter().any(|e| matches!(e, SplitPart::Alias(_)));
         Ok((
             collect_expanded(self.user_alias_expansion(
                 splitted,
@@ -272,10 +269,7 @@ impl AllData {
     ) -> Result<(String, bool), String> {
         let mut alias_seen = HashSet::new();
         let splitted = split_cmd(cmd)?;
-        let has_alias = splitted.iter().any(|e| match e {
-            SplitPart::Alias(_) => true,
-            _ => false,
-        });
+        let has_alias = splitted.iter().any(|e| matches!(e, SplitPart::Alias(_)));
         Ok((
             collect_expanded(self.global_alias_expansion(
                 splitted,
@@ -287,7 +281,7 @@ impl AllData {
         ))
     }
 
-    fn apply_args(&self, args: &Vec<String>, expansion: String) -> Result<String, String> {
+    fn apply_args(&self, args: &[String], expansion: String) -> Result<String, String> {
         let mut applied = String::new();
         let mut slice = expansion.as_str();
         while let Some(start_pos) = slice.find('%') {

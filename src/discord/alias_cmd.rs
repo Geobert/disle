@@ -228,7 +228,7 @@ async fn clear_user_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandR
         let all_data = data.get_mut::<Aliases>().unwrap();
         all_data.clear_user_aliases(chat_id(msg), *msg.author.id.as_u64())
     };
-    send_message(ctx, msg, &msg_to_send).await?;
+    send_message(ctx, msg, msg_to_send).await?;
     Ok(())
 }
 
@@ -248,7 +248,7 @@ async fn list_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
             all_data.list_alias(chat_id(msg), *msg.author.id.as_u64());
         let fmt_aliases = |list: Vec<String>, title: String| {
             list.iter().fold(title, |mut acc, s| {
-                acc.push_str(&s);
+                acc.push_str(s);
                 acc.push('\n');
                 acc
             })
@@ -287,7 +287,7 @@ async fn save_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
     } else {
         "Only allowed users can save the configuration"
     };
-    send_message(ctx, msg, &msg_to_send).await?;
+    send_message(ctx, msg, msg_to_send).await?;
     Ok(())
 }
 
@@ -309,7 +309,7 @@ async fn load_alias(ctx: &Context, msg: &Message, _args: Args) -> CommandResult 
         "Only allowed users can load the configuration"
     };
 
-    send_message(ctx, msg, &msg_to_send).await?;
+    send_message(ctx, msg, msg_to_send).await?;
     Ok(())
 }
 

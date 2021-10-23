@@ -48,12 +48,12 @@ pub fn search_crit(res: &RollResult) -> Result<HashSet<Critic>, serenity::Error>
     let mut set = HashSet::new();
     match res.get_result() {
         RollResultType::Single(res) => {
-            search_crit_simple(&res, &mut set)?;
+            search_crit_simple(res, &mut set)?;
             Ok(set)
         }
         RollResultType::Repeated(res) => {
             for roll in res.iter() {
-                search_crit_simple(&roll, &mut set)?;
+                search_crit_simple(roll, &mut set)?;
                 if set.len() >= 2 {
                     return Ok(set);
                 }

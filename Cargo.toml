@@ -1,6 +1,6 @@
 [package]
 name = "disle"
-version = "1.2.4"
+version = "1.2.5"
 authors = ["Geobert Quach <geobert@protonmail.com>"]
 edition = "2018"
 description = "A Discord dice roller bot with alias management"
@@ -12,15 +12,15 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "1.5.0", features = ["macros", "signal", "rt-multi-thread"] }
-caith = { version = "4.2.1", features = ["ova", "cde", "cards"] }
+tokio = { version = "1.12.0", features = ["macros", "signal", "rt-multi-thread"] }
+caith = { version = "4.2.2", features = ["ova", "cde", "cards"] }
 # caith = { path = "../caith", features = ["ova", "cde", "cards"] }
-ron = "0.6.4"
-serde = { version = "1.0.125", features = ["serde_derive"] }
-futures = "0.3.14"
+ron = "0.7.0"
+serde = { version = "1.0.130", features = ["serde_derive"] }
+futures = "0.3.17"
 
 [dependencies.serenity] 
-version = "0.10.5"
+version = "0.10.9"
 optional = true
 
 [features]
